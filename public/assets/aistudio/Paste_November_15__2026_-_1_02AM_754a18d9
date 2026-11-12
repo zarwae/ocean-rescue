@@ -1,0 +1,1362 @@
+MASTER PROMPT — OCEAN RESCUE
+
+A Premium Interactive Ocean Conservation Platform
+
+SDG 14: LIFE BELOW WATER
+
+⸻
+
+00. YOUR ROLE AND MISSION
+
+Saya ingin berinovasi membuat web interaktif SDG 14 (Life Below Water).
+
+Saya ingin membangun sebuah website bernama OCEAN RESCUE, dengan tagline:
+
+“THE OCEAN IS NOT OURS TO DESTROY. IT IS OURS TO PROTECT.”
+
+Website ini harus memiliki kualitas visual, user experience, interaktivitas, dan technical implementation setara dengan produk digital profesional yang dikembangkan oleh studio web design kelas dunia.
+
+Anda harus bertindak sebagai gabungan dari:
+
+* Senior Creative Director.
+* Award-winning UI/UX Designer.
+* Senior Frontend Developer.
+* Full-stack Software Engineer.
+* Marine Biology Researcher.
+* Environmental Data Visualizer.
+* Game Designer.
+* Motion Design Specialist.
+
+Jangan berpikir seperti AI website generator yang hanya menyusun section, membuat gradient, menambahkan card, dan memasang beberapa tombol.
+
+Pikirkan proyek ini sebagai sebuah produk digital sungguhan yang akan diluncurkan secara publik.
+
+THE MAIN OBJECTIVE:
+
+Create an immersive, scientifically responsible, visually exceptional, and highly interactive digital experience that makes people understand the importance of protecting marine ecosystems.
+
+Website harus terasa seperti perpaduan antara:
+
+* A premium environmental organization.
+* An interactive scientific exploration platform.
+* A modern digital museum.
+* An immersive underwater experience.
+* A professional educational technology product.
+
+Jangan membuatnya terlihat seperti template website AI.
+
+Jangan mengurangi kualitas desain hanya karena proyek ini merupakan tugas sekolah.
+
+⸻
+
+01. BRAND IDENTITY AND CREATIVE DIRECTION
+
+Brand name
+
+OCEAN RESCUE
+
+Brand personality
+
+* Intelligent.
+* Elegant.
+* Scientific.
+* Adventurous.
+* Trustworthy.
+* Environmentally conscious.
+* Modern.
+* Immersive.
+
+Visual direction
+
+Saya ingin desain yang terinspirasi dari kualitas website editorial, environmental organizations, premium science publications, dan modern interactive storytelling websites.
+
+Visualnya harus terasa seperti sebuah pengalaman menjelajahi dunia bawah laut, bukan dashboard administrasi biasa.
+
+Color system
+
+Gunakan sistem warna yang konsisten:
+
+Primary background:
+
+* Midnight Ocean: #061622
+* Abyss Black: #031019
+* Deep Navy: #0A2435
+
+Secondary:
+
+* Ocean Blue: #0B526B
+* Deep Teal: #087F8C
+* Marine Turquoise: #35C6C0
+
+Accent:
+
+* Seafoam: #9DE3D7
+* Soft Sand: #E8DCC7
+* Coral Orange: #FF806B
+
+Text:
+
+* Primary white: #F4F7F5
+* Secondary gray: #A8BAC1
+* Muted gray: #70858E
+
+Jangan menggunakan semua warna secara bersamaan. Terapkan visual hierarchy dan gunakan accent colors secara selektif.
+
+Typography
+
+Gunakan kombinasi typography profesional.
+
+Rekomendasi:
+
+* Headings: Manrope, Plus Jakarta Sans, atau Space Grotesk.
+* Body: Inter atau DM Sans.
+* Editorial headings: gunakan serif font secara terbatas jika memang cocok.
+
+Typography harus memiliki:
+
+* Strong visual hierarchy.
+* Elegant font weights.
+* Carefully controlled line heights.
+* Proper letter spacing.
+* Consistent heading scales.
+
+Hindari penggunaan terlalu banyak jenis font.
+
+Design principles
+
+1. Whitespace harus digunakan dengan sengaja.
+2. Jangan membuat semua section terlihat sama.
+3. Jangan menggunakan terlalu banyak rounded cards.
+4. Jangan menggunakan gradient pada setiap elemen.
+5. Jangan menggunakan emoji sebagai pengganti icon profesional.
+6. Jangan menggunakan terlalu banyak glassmorphism.
+7. Jangan membuat setiap section memiliki background yang sama.
+8. Jangan membuat semua tombol memiliki ukuran dan warna yang sama.
+9. Hindari elemen dekoratif yang tidak memiliki tujuan.
+10. Setiap halaman harus memiliki komposisi visual yang unik.
+
+Gunakan subtle borders, elegant shadows, restrained highlights, editorial layouts, asymmetrical compositions, dan intentional spacing.
+
+⸻
+
+02. PHOTOGRAPHY AND VISUAL STORYTELLING
+
+Visual merupakan salah satu bagian terpenting dari proyek ini.
+
+Saya tidak ingin website dipenuhi ilustrasi generik, gambar kartun, atau visual yang terlihat seperti hasil AI.
+
+Gunakan fotografi underwater berkualitas tinggi yang terlihat realistis dan sinematik.
+
+Prioritaskan:
+
+* Real underwater photography.
+* Coral reef ecosystems.
+* Sea turtles swimming.
+* Whale sharks.
+* Schools of fish.
+* Deep ocean environments.
+* Marine biodiversity.
+* Ocean pollution.
+* Underwater landscapes.
+* Marine conservation activities.
+
+Gunakan gambar berkualitas tinggi dengan komposisi fotografi profesional.
+
+Visual harus memiliki:
+
+* Natural lighting.
+* Realistic underwater colors.
+* Cinematic atmosphere.
+* Proper image cropping.
+* High resolution.
+* Consistent art direction.
+
+Gunakan gambar dari sumber yang dapat diakses dan memiliki izin penggunaan yang sesuai.
+
+Jangan menggunakan broken image links.
+
+Jangan menggunakan gambar yang sama berulang kali.
+
+Jangan membuat gambar hewan yang tidak sesuai dengan spesies atau habitatnya.
+
+Gunakan image overlays hanya jika diperlukan untuk menjaga keterbacaan teks.
+
+⸻
+
+03. GLOBAL WEBSITE EXPERIENCE
+
+Buat struktur website yang lengkap dan profesional.
+
+Website memiliki beberapa halaman utama:
+
+1. Home.
+2. The Ocean Crisis.
+3. Explore Marine Life.
+4. Ocean Simulator.
+5. Ocean Cleanup Game.
+6. Aqua AI.
+7. Ocean Knowledge.
+8. Impact Calculator.
+9. Missions.
+10. User Dashboard.
+
+Gunakan navigasi yang intuitif.
+
+Navigation design
+
+Buat navbar minimalis dan elegan.
+
+Navbar harus memiliki:
+
+* OCEAN RESCUE brand logo.
+* Home.
+* Discover.
+* Experience.
+* Take Action.
+* Dashboard.
+* Get Involved CTA.
+
+Gunakan dropdown navigation jika diperlukan.
+
+Navbar harus:
+
+* Transparan pada bagian hero.
+* Berubah menjadi solid atau semi-solid ketika pengguna scroll.
+* Memiliki active state yang jelas.
+* Responsive pada mobile.
+* Memiliki mobile navigation yang nyaman digunakan.
+
+Jangan membuat navbar terlalu tinggi atau terlalu ramai.
+
+Global interactions
+
+Implementasikan:
+
+* Smooth scrolling.
+* Subtle hover animations.
+* Page transitions.
+* Scroll-triggered reveals.
+* Image parallax secara terbatas.
+* Interactive navigation indicators.
+* Loading states.
+* Error states.
+* Empty states.
+* Toast notifications.
+* Consistent button behavior.
+
+Semua animasi harus terasa natural dan tidak mengganggu performa.
+
+Respect prefers-reduced-motion.
+
+⸻
+
+04. HOMEPAGE — THE WORLD BELOW
+
+Homepage harus menjadi bagian paling mengesankan dari seluruh website.
+
+Saya ingin pengguna langsung merasa sedang memasuki sebuah pengalaman eksplorasi laut.
+
+A. Hero section
+
+Buat full-screen cinematic hero section.
+
+Visual:
+
+* Realistic underwater environment.
+* Wide-angle underwater photography.
+* Dramatic natural sunlight penetrating the water.
+* Marine life swimming naturally.
+* Deep ocean blue atmosphere.
+
+Text:
+
+Small label:
+“UNITED NATIONS SUSTAINABLE DEVELOPMENT GOAL 14”
+
+Main heading:
+
+“THE OCEAN IS CALLING.”
+
+Supporting text:
+
+“An exploration of the underwater world, the threats it faces, and the future we can still protect.”
+
+Primary CTA:
+“EXPLORE THE OCEAN”
+
+Secondary CTA:
+“UNDERSTAND THE CRISIS”
+
+Tambahkan:
+
+* Subtle scroll indicator.
+* Minimal animated ocean particles.
+* Elegant typography.
+* Carefully positioned text.
+* Subtle entrance animations.
+
+Jangan membuat hero seperti template AI dengan teks di tengah dan tiga tombol.
+
+Gunakan editorial composition yang lebih unik dan berani.
+
+B. The ocean in numbers
+
+Buat section statistik yang memiliki visual editorial.
+
+Judul:
+
+“ONE PLANET. ONE OCEAN. COUNTLESS LIVES.”
+
+Tampilkan data:
+
+* Total ocean coverage of Earth’s surface.
+* Number of known marine species, jika sumbernya tersedia.
+* Marine protected area coverage.
+* Relevant ocean pollution indicators.
+
+Setiap angka harus:
+
+* Memiliki sumber.
+* Memiliki tahun.
+* Memiliki keterangan yang jelas.
+* Menggunakan animasi counter yang halus.
+
+Jangan membuat angka statistik sendiri.
+
+C. Why the ocean matters
+
+Buat section storytelling tentang peran lautan.
+
+Bahas:
+
+* Climate regulation.
+* Oxygen production.
+* Biodiversity.
+* Food security.
+* Marine ecosystems.
+* Global economy.
+
+Gunakan kombinasi fotografi, editorial text, dan visualisasi.
+
+D. The ocean is under pressure
+
+Buat section yang menunjukkan permasalahan utama:
+
+* Plastic pollution.
+* Overfishing.
+* Coral bleaching.
+* Ocean acidification.
+* Habitat destruction.
+* Climate change.
+
+Setiap permasalahan memiliki:
+
+* Visual.
+* Explanation.
+* Environmental consequences.
+* Real-world context.
+* Learn more link.
+
+E. Discover the underwater world
+
+Buat visual showcase untuk:
+
+* Coral reefs.
+* Open ocean.
+* Deep sea.
+* Mangrove ecosystems.
+* Seagrass meadows.
+
+Setiap kategori dapat diklik dan membuka eksplorasi lebih lanjut.
+
+F. Call to action
+
+Headline:
+
+“THE FUTURE OF OUR OCEANS IS STILL UNWRITTEN.”
+
+Supporting text:
+
+“Understanding the problem is the first step. Taking action is what changes the future.”
+
+CTA:
+“START YOUR OCEAN JOURNEY”
+
+⸻
+
+05. THE OCEAN CRISIS — INTERACTIVE STORYTELLING
+
+Buat halaman khusus yang menjelaskan krisis ekosistem laut.
+
+Jangan hanya menyajikan artikel panjang.
+
+Gunakan interactive storytelling.
+
+Setiap permasalahan memiliki halaman atau section tersendiri.
+
+Plastic pollution
+
+Jelaskan:
+
+* Sources of plastic pollution.
+* How plastic enters marine environments.
+* Microplastics.
+* Impacts on marine organisms.
+* Long-term environmental consequences.
+* Possible solutions.
+
+Overfishing
+
+Jelaskan:
+
+* Unsustainable fishing.
+* Marine food webs.
+* Population decline.
+* Bycatch.
+* Sustainable fishing practices.
+
+Coral bleaching
+
+Jelaskan:
+
+* What coral bleaching is.
+* Relationship between coral and symbiotic algae.
+* Temperature stress.
+* Effects on reef ecosystems.
+* Conservation efforts.
+
+Ocean acidification
+
+Jelaskan:
+
+* Carbon dioxide absorption.
+* Changes in seawater chemistry.
+* Effects on calcifying organisms.
+* Long-term ecosystem consequences.
+
+Habitat destruction
+
+Jelaskan:
+
+* Mangrove destruction.
+* Seagrass degradation.
+* Coral reef damage.
+* Coastal development.
+
+Tambahkan:
+
+* Interactive diagrams.
+* Before-and-after visual comparisons jika gambar tersedia.
+* Scientific explanations.
+* Source citations.
+* Related marine species.
+
+Setiap informasi harus ilmiah dan dapat dipertanggungjawabkan.
+
+⸻
+
+06. MARINE LIFE EXPLORER — DIGITAL UNDERWATER MUSEUM
+
+Buat sebuah ensiklopedia kehidupan laut dengan kualitas seperti museum digital profesional.
+
+Jangan tampilkan hanya grid kartu biasa.
+
+Gunakan editorial gallery, visual exploration, dan kategori yang jelas.
+
+Categories
+
+1. Marine Mammals.
+2. Sharks and Rays.
+3. Marine Reptiles.
+4. Ocean Fish.
+5. Corals.
+6. Deep Sea Creatures.
+7. Marine Invertebrates.
+
+Species database
+
+Masukkan setidaknya 30 spesies dengan informasi yang akurat.
+
+Contoh:
+
+* Whale Shark.
+* Blue Whale.
+* Green Sea Turtle.
+* Hawksbill Turtle.
+* Manta Ray.
+* Clownfish.
+* Great White Shark.
+* Hammerhead Shark.
+* Bottlenose Dolphin.
+* Giant Pacific Octopus.
+* Lionfish.
+* Seahorse.
+* Moon Jellyfish.
+* Giant Clam.
+* Napoleon Wrasse.
+* Sea Otter.
+* Dugong.
+* Humpback Whale.
+* Blue Tang.
+* Ocean Sunfish.
+
+Species detail page
+
+Setiap spesies harus memiliki:
+
+* High-quality photograph.
+* Common name.
+* Scientific name.
+* Taxonomy.
+* Habitat.
+* Geographic distribution.
+* Diet.
+* Physical characteristics.
+* Ecological role.
+* Conservation threats.
+* IUCN conservation status, jika tersedia.
+* Interesting facts.
+* References.
+
+Tambahkan fitur:
+
+Search
+
+Pengguna dapat mencari spesies berdasarkan nama.
+
+Filter
+
+Filter berdasarkan:
+
+* Animal category.
+* Habitat.
+* Conservation status.
+
+Species discovery
+
+Tampilkan random species.
+
+Species comparison
+
+Pengguna dapat memilih dua spesies dan membandingkan karakteristiknya.
+
+Favorite
+
+Pengguna dapat menyimpan spesies favorit.
+
+Gunakan detail page yang unik, bukan modal kecil yang penuh teks.
+
+⸻
+
+07. OCEAN SIMULATOR — THE LIVING ECOSYSTEM
+
+Ini merupakan salah satu fitur terpenting.
+
+Bangun sebuah interactive ecosystem simulation yang benar-benar berfungsi.
+
+Pengguna harus bisa memahami hubungan antara aktivitas manusia dan keseimbangan ekosistem laut.
+
+Simulation interface
+
+Gunakan layout yang menyerupai scientific research interface.
+
+Bagian utama:
+
+* Large interactive underwater scene.
+* Environmental parameter panel.
+* Ecosystem health indicators.
+* Simulation explanation.
+* Data visualization.
+
+Parameters
+
+Buat input interaktif:
+
+1. Water Temperature.
+2. Plastic Pollution.
+3. Ocean Acidification.
+4. Fishing Pressure.
+5. Coral Reef Health.
+6. Marine Biodiversity.
+
+Gunakan slider, selectable controls, dan numerical indicators.
+
+Dynamic simulation
+
+Ketika pengguna mengubah parameter:
+
+* Environmental indicators harus berubah.
+* Coral health harus merespons faktor yang relevan.
+* Marine biodiversity harus berubah berdasarkan asumsi model.
+* Visual laut harus menunjukkan perubahan secara bertahap.
+* Informasi ilmiah harus menjelaskan apa yang sedang terjadi.
+
+Contohnya:
+
+Jika pengguna meningkatkan water temperature:
+
+* Tampilkan risiko thermal stress pada coral.
+* Berikan penjelasan tentang coral bleaching.
+* Tunjukkan perubahan indikator kesehatan terumbu karang.
+
+Jika pengguna meningkatkan fishing pressure:
+
+* Tampilkan dampak terhadap populasi ikan.
+* Jelaskan gangguan pada marine food webs.
+
+Jika pengguna meningkatkan plastic pollution:
+
+* Tampilkan peningkatan tingkat pencemaran.
+* Jelaskan risiko terhadap kehidupan laut.
+
+Comparison mode
+
+Tambahkan fitur untuk membandingkan:
+
+* Healthy Ocean.
+* Stressed Ocean.
+* Severely Degraded Ocean.
+
+Pengguna dapat melihat perbedaan setiap kondisi.
+
+Visualizations
+
+Tambahkan:
+
+* Ecosystem health score.
+* Coral health indicator.
+* Biodiversity indicator.
+* Pollution indicator.
+* Temperature indicator.
+* Interactive charts.
+* Environmental status descriptions.
+
+Scientific integrity
+
+Jangan menyajikan hubungan sederhana dalam simulasi sebagai model prediksi ilmiah.
+
+Gunakan model edukatif dengan asumsi yang dijelaskan.
+
+Jangan menciptakan persentase dampak yang diklaim sebagai data penelitian.
+
+Tambahkan tombol:
+
+* Reset Simulation.
+* Compare Ecosystems.
+* Explain Results.
+* Save Scenario.
+
+⸻
+
+08. OCEAN CLEANUP — INTERACTIVE GAME
+
+Bangun mini-game yang benar-benar bisa dimainkan.
+
+Game harus terasa seperti produk game edukasi, bukan sekadar kumpulan tombol.
+
+Game concept
+
+Pemain berperan sebagai ocean explorer yang membersihkan sampah laut.
+
+Gameplay
+
+Tampilkan underwater environment dengan berbagai objek.
+
+Objek:
+
+* Plastic bottles.
+* Plastic bags.
+* Food wrappers.
+* Fishing nets.
+* Aluminum cans.
+* Marine animals.
+* Coral formations.
+
+Pengguna harus mengidentifikasi sampah dan memilihnya untuk dibersihkan.
+
+Jangan biarkan pemain memilih hewan laut atau terumbu karang sebagai sampah.
+
+Game mechanics
+
+* Countdown timer.
+* Score system.
+* Combo multiplier.
+* Accuracy percentage.
+* Level progression.
+* Difficulty progression.
+* Special missions.
+* Achievement unlocks.
+
+Game levels
+
+LEVEL 01 — COASTAL BEGINNER.
+
+LEVEL 02 — REEF EXPLORER.
+
+LEVEL 03 — DEEP OCEAN CLEANER.
+
+LEVEL 04 — MARINE PROTECTOR.
+
+LEVEL 05 — OCEAN GUARDIAN.
+
+Setiap level memiliki gameplay dan tingkat kesulitan berbeda.
+
+End screen
+
+Tampilkan:
+
+* Final score.
+* Correct selections.
+* Wrong selections.
+* Accuracy.
+* XP earned.
+* Achievement unlocked.
+* Play again button.
+
+Tambahkan sound effects opsional dengan tombol mute.
+
+Game harus dapat dimainkan menggunakan mouse, touchscreen, dan keyboard jika memungkinkan.
+
+⸻
+
+09. AQUA AI — INTELLIGENT OCEAN ASSISTANT
+
+Buat AI chatbot bernama AQUA.
+
+AQUA adalah asisten edukasi yang fokus pada marine science dan ocean conservation.
+
+Interface
+
+Buat tampilan seperti premium AI research assistant.
+
+Hindari tampilan chatbot generik.
+
+Gunakan:
+
+* Minimalist chat layout.
+* Elegant message bubbles.
+* Clear typography.
+* Subtle loading animation.
+* Suggested prompts.
+* Chat history.
+* Clear conversation button.
+
+AI capabilities
+
+AQUA harus mampu:
+
+1. Menjelaskan marine biology.
+2. Menjawab pertanyaan tentang ocean pollution.
+3. Menjelaskan coral reef ecosystems.
+4. Menjelaskan marine biodiversity.
+5. Menjelaskan climate change.
+6. Memberikan informasi spesies laut.
+7. Menjelaskan SDG 14.
+8. Memberikan saran konservasi.
+9. Membantu pengguna memahami hasil simulasi.
+10. Menjawab pertanyaan tentang aktivitas manusia dan dampaknya terhadap laut.
+
+Suggested questions
+
+* Why are oceans important for our planet?
+* How does plastic pollution affect marine animals?
+* What causes coral bleaching?
+* Why are sharks important?
+* What happens when marine biodiversity declines?
+* How can students help protect the ocean?
+
+Technical implementation
+
+Gunakan Gemini API melalui server-side endpoint yang aman.
+
+Gunakan environment variable untuk API key.
+
+Jangan pernah mengekspos API key pada client-side JavaScript.
+
+Jika API tidak tersedia:
+
+* Tampilkan setup instructions.
+* Sediakan demo mode dengan beberapa pertanyaan dan jawaban lokal.
+* Jangan berpura-pura bahwa AI sedang menjawab jika sebenarnya hanya menggunakan jawaban statis.
+
+AQUA harus menjawab dengan bahasa yang mudah dimengerti, tetapi tetap ilmiah.
+
+⸻
+
+10. OCEAN KNOWLEDGE — EDUCATIONAL LIBRARY
+
+Buat sebuah digital knowledge library.
+
+Gunakan desain editorial seperti majalah sains premium.
+
+Topics:
+
+1. Understanding SDG 14.
+2. The Importance of Marine Biodiversity.
+3. The Hidden Impact of Plastic Pollution.
+4. Coral Reefs: The Rainforests of the Sea.
+5. The Problem of Overfishing.
+6. Understanding Ocean Acidification.
+7. The Role of Mangrove Forests.
+8. Deep Sea Ecosystems.
+9. Sustainable Seafood.
+10. Protecting Endangered Marine Species.
+11. Marine Protected Areas.
+12. How Climate Change Affects the Ocean.
+
+Setiap artikel harus memiliki:
+
+* Cover photograph.
+* Category.
+* Reading time.
+* Main headline.
+* Introduction.
+* Main content.
+* Scientific facts.
+* Related species.
+* References.
+* Related articles.
+
+Buat search dan category filtering.
+
+Pastikan konten tidak sekadar mengulang informasi yang sama di semua artikel.
+
+⸻
+
+11. OCEAN IMPACT CALCULATOR
+
+Buat kalkulator interaktif untuk mengedukasi pengguna mengenai kebiasaan penggunaan plastik.
+
+User inputs
+
+* Plastic bottles used per day.
+* Plastic bags used per week.
+* Single-use food packaging per week.
+* Reusable bottle usage.
+* Recycling habits.
+
+Results
+
+Hitung:
+
+* Estimated plastic items used monthly.
+* Estimated plastic items used annually.
+* Reusable alternatives.
+* Personal reduction opportunities.
+
+Tampilkan:
+
+* Visual charts.
+* Environmental impact summary.
+* Personalized recommendations.
+* Comparison scenarios.
+
+Tambahkan tombol:
+
+“WHAT IF I REDUCE MY PLASTIC USE?”
+
+Ketika diklik, pengguna dapat mengubah kebiasaan dan melihat perbandingan hasil.
+
+Jelaskan asumsi perhitungan.
+
+Jangan menyatakan semua plastik yang digunakan pengguna pasti masuk ke laut.
+
+⸻
+
+12. TAKE ACTION — DAILY MISSIONS
+
+Buat sebuah halaman yang mengajak pengguna mengambil tindakan nyata.
+
+Misi harus realistis dan dapat dilakukan oleh pelajar.
+
+Contoh:
+
+* Bring a reusable water bottle.
+* Avoid unnecessary plastic packaging.
+* Learn about an endangered marine species.
+* Share an ocean conservation fact.
+* Participate in a community cleanup.
+* Support sustainable seafood practices.
+* Reduce single-use plastics.
+* Learn how to recycle correctly.
+
+Setiap misi memiliki:
+
+* Title.
+* Description.
+* Difficulty.
+* Estimated time.
+* XP reward.
+* Completion status.
+
+Tambahkan:
+
+* Daily missions.
+* Weekly challenges.
+* Mission progress.
+* Achievement unlocks.
+
+Jika pengguna menandai misi selesai, jelaskan bahwa penyelesaian tersebut merupakan self-reported action, bukan aktivitas yang diverifikasi.
+
+⸻
+
+13. USER PROFILE — OCEAN EXPLORER DASHBOARD
+
+Buat dashboard yang terasa seperti personal progress center.
+
+Tampilkan:
+
+* Username.
+* Profile avatar.
+* Current level.
+* Total XP.
+* Missions completed.
+* Quiz performance.
+* Games played.
+* Favorite species.
+* Achievements.
+
+Level system
+
+LEVEL 1 — OCEAN BEGINNER.
+
+LEVEL 2 — SEA EXPLORER.
+
+LEVEL 3 — MARINE PROTECTOR.
+
+LEVEL 4 — OCEAN GUARDIAN.
+
+LEVEL 5 — OCEAN LEGEND.
+
+Setiap level memiliki:
+
+* Unique badge.
+* XP requirement.
+* Progress bar.
+* Unlockable achievements.
+
+Achievement system
+
+* First Dive.
+* Plastic Fighter.
+* Marine Explorer.
+* Quiz Master.
+* Coral Protector.
+* Deep Sea Discoverer.
+* Ocean Guardian.
+
+Gunakan persistent local storage untuk menyimpan progress.
+
+Pastikan data tidak hilang ketika pengguna melakukan refresh.
+
+Tambahkan reset progress option.
+
+Jangan menampilkan leaderboard global palsu jika belum ada backend database.
+
+⸻
+
+14. OCEAN QUIZ — KNOWLEDGE CHALLENGE
+
+Bangun sistem quiz yang benar-benar berfungsi.
+
+Kategori:
+
+* Marine Biology.
+* Ocean Pollution.
+* Coral Reefs.
+* Climate Change.
+* Ocean Conservation.
+* Endangered Species.
+
+Tambahkan tiga difficulty levels:
+
+* Beginner.
+* Intermediate.
+* Advanced.
+
+Minimal 50 pertanyaan yang bervariasi.
+
+Setiap pertanyaan memiliki:
+
+* Question.
+* Four answer options.
+* Correct answer.
+* Explanation.
+* XP reward.
+
+Quiz experience
+
+* One question at a time.
+* Clear answer selection.
+* Instant feedback.
+* Progress indicator.
+* Optional timer.
+* Score calculation.
+* Final results.
+* Review incorrect answers.
+* Retry quiz.
+
+Pastikan pertanyaan memiliki fakta ilmiah yang benar.
+
+Jangan membuat pertanyaan berulang hanya dengan mengubah susunan kata.
+
+⸻
+
+15. INTERACTIVE DATA VISUALIZATION
+
+Buat halaman khusus untuk memahami data laut.
+
+Gunakan visualisasi yang menarik dan mudah dimengerti.
+
+Visualisasi yang dapat dibuat:
+
+* Ocean coverage statistics.
+* Marine protected area coverage.
+* Ocean temperature trends.
+* Coral reef health indicators.
+* Plastic pollution indicators.
+* Marine biodiversity information.
+
+Gunakan:
+
+* Interactive line charts.
+* Bar charts.
+* Donut charts.
+* Comparison charts.
+* Geographic maps jika tersedia data dan library yang sesuai.
+
+Setiap visualisasi harus memiliki:
+
+* Title.
+* Description.
+* Units.
+* Data source.
+* Year.
+* Explanation.
+
+Jangan mengarang dataset.
+
+Jika data real-time atau historical data tidak tersedia, gunakan data contoh yang jelas diberi label “Illustrative Data”.
+
+⸻
+
+16. MICRO-INTERACTIONS AND MOTION DESIGN
+
+Ini sangat penting untuk membuat website terasa profesional.
+
+Tambahkan animasi secara selektif.
+
+Examples:
+
+* Hero text reveal.
+* Subtle image parallax.
+* Scroll-based section transitions.
+* Underwater particle movement.
+* Button hover transitions.
+* Animated numerical counters.
+* Smooth chart transitions.
+* Subtle card interactions.
+* Interactive species gallery.
+* Progress bar animations.
+* Achievement unlock animation.
+* Game feedback animations.
+
+Animation principles:
+
+1. Animations must have a purpose.
+2. Never sacrifice performance for animation.
+3. Avoid excessive bouncing effects.
+4. Avoid unnecessary spinning elements.
+5. Keep transitions smooth and consistent.
+6. Support reduced-motion preferences.
+
+Gunakan Framer Motion atau library animasi lain jika kompatibel dengan project.
+
+⸻
+
+17. RESPONSIVE DESIGN
+
+Website harus benar-benar responsive.
+
+Desktop:
+
+* Wide editorial layouts.
+* Large cinematic photography.
+* Multi-column compositions.
+* Rich interactive sections.
+
+Tablet:
+
+* Adaptive layouts.
+* Proper spacing.
+* Readable typography.
+* Optimized image proportions.
+
+Mobile:
+
+* Fully functional navigation.
+* Properly stacked sections.
+* Touch-friendly controls.
+* Responsive games.
+* Readable charts.
+* No horizontal overflow.
+* Proper image cropping.
+* Optimized loading.
+
+Jangan hanya mengecilkan versi desktop untuk mobile.
+
+Rancang pengalaman mobile dengan serius.
+
+⸻
+
+18. ACCESSIBILITY AND PERFORMANCE
+
+Pastikan website dapat digunakan oleh sebanyak mungkin orang.
+
+Implementasikan:
+
+* Semantic HTML.
+* Keyboard navigation.
+* Accessible labels.
+* Proper color contrast.
+* Alt text for meaningful images.
+* Focus indicators.
+* Screen-reader-friendly interactions.
+* Reduced motion support.
+
+Performance:
+
+* Optimize image sizes.
+* Lazy load below-the-fold images.
+* Avoid unnecessary dependencies.
+* Avoid excessive animations.
+* Prevent unnecessary component re-rendering.
+* Use efficient state management.
+* Avoid layout shifts.
+* Handle loading and error states properly.
+
+Targetkan performa yang baik di Lighthouse.
+
+⸻
+
+19. TECHNICAL ARCHITECTURE
+
+Bangun project menggunakan teknologi modern yang stabil dan kompatibel dengan Google AI Studio, GitHub, dan Vercel.
+
+Preferred stack:
+
+* React.
+* TypeScript.
+* Vite atau framework yang didukung environment.
+* Tailwind CSS atau modular CSS.
+* Framer Motion.
+* Lucide Icons.
+* Recharts untuk visualisasi.
+* Gemini API untuk Aqua AI.
+* LocalStorage untuk user progress.
+
+Gunakan struktur project yang terorganisasi.
+
+Pisahkan:
+
+* Components.
+* Pages.
+* Layouts.
+* Hooks.
+* Utilities.
+* Data.
+* Types.
+* Services.
+* Styles.
+
+Jangan menaruh seluruh kode dalam satu file besar.
+
+Gunakan reusable components.
+
+Implementasikan:
+
+* Proper TypeScript types.
+* Error handling.
+* Input validation.
+* Safe API integration.
+* Environment variables.
+* Clean component architecture.
+* Consistent naming conventions.
+
+Pastikan tidak ada API key di dalam source code frontend.
+
+Jika menggunakan backend, gunakan serverless functions yang kompatibel dengan Vercel.
+
+⸻
+
+20. CONTENT QUALITY AND SCIENTIFIC ACCURACY
+
+Semua konten harus menggunakan bahasa Indonesia yang natural, profesional, dan mudah dipahami siswa SMA.
+
+Jangan menggunakan bahasa yang terlalu kaku.
+
+Jangan mengulang kalimat yang sama di setiap section.
+
+Jangan menggunakan kalimat generik seperti:
+“Welcome to our amazing website.”
+
+Gunakan storytelling yang menarik tetapi tetap faktual.
+
+Prioritaskan sumber terpercaya seperti:
+
+* United Nations.
+* UNESCO.
+* NOAA.
+* UNEP.
+* IUCN.
+* FAO.
+* Scientific research publications.
+
+Setiap statistik dan klaim ilmiah penting harus memiliki sumber yang dapat ditelusuri.
+
+Jangan menciptakan:
+
+* Fake statistics.
+* Fake scientific studies.
+* Fake conservation status.
+* Fake citations.
+* Fake real-time environmental data.
+
+Pisahkan data faktual, estimasi, dan simulasi.
+
+⸻
+
+21. FINAL QUALITY ASSURANCE
+
+Sebelum menyelesaikan website, lakukan pemeriksaan menyeluruh.
+
+Visual audit
+
+Periksa:
+
+* Typography.
+* Color consistency.
+* Spacing.
+* Image quality.
+* Visual hierarchy.
+* Section transitions.
+* Navbar.
+* Footer.
+* Mobile appearance.
+* Overall visual consistency.
+
+Pastikan website tidak terlihat seperti template AI generik.
+
+Functional audit
+
+Tes seluruh fitur:
+
+* Navigation.
+* Search.
+* Filters.
+* Species detail pages.
+* Species comparison.
+* Simulator sliders.
+* Simulation reset.
+* Game mechanics.
+* Game scoring.
+* Aqua AI.
+* Quiz.
+* Calculator.
+* Missions.
+* XP system.
+* Achievements.
+* Dashboard.
+* Local persistence.
+
+Jangan membiarkan tombol yang tidak memiliki fungsi.
+
+Technical audit
+
+Periksa:
+
+* TypeScript errors.
+* Console errors.
+* Missing dependencies.
+* Broken image paths.
+* API failures.
+* Responsive bugs.
+* Build errors.
+* Vercel deployment compatibility.
+
+Jangan hanya mengatakan bahwa website sudah selesai. Benar-benar periksa implementasinya.
+
+⸻
+
+22. ABSOLUTE DESIGN RESTRICTIONS
+
+Saya secara khusus TIDAK menginginkan hal-hal berikut:
+
+* Generic AI-generated website appearance.
+* Excessive gradient backgrounds.
+* Too many rounded cards.
+* Excessive glassmorphism.
+* Random decorative icons.
+* Emoji-heavy interfaces.
+* Repetitive layouts.
+* Oversized empty sections without purpose.
+* Fake charts.
+* Fake statistics.
+* Fake buttons.
+* Placeholder text.
+* Repeated stock photos.
+* Poor typography.
+* Inconsistent spacing.
+* Unnecessary animations.
+* Cheap-looking illustrations.
+* Inconsistent colors.
+* Unfinished pages.
+* Non-functional interactions.
+
+Setiap elemen harus memiliki alasan desain dan fungsi yang jelas.
+
+⸻
+
+23. FINAL CREATIVE DIRECTION
+
+Saya ingin ketika seseorang membuka website ini, mereka merasakan pengalaman seperti sedang mengunjungi sebuah digital ocean conservation organization yang profesional.
+
+Website harus memiliki:
+
+THE VISUAL QUALITY OF A PREMIUM DESIGN STUDIO.
+
+THE FUNCTIONALITY OF A MODERN INTERACTIVE PLATFORM.
+
+THE EDUCATIONAL VALUE OF A SCIENTIFIC MUSEUM.
+
+THE EXPERIENCE OF AN IMMERSIVE UNDERWATER WORLD.
+
+THE PURPOSE OF A REAL ENVIRONMENTAL INITIATIVE.
+
+Jangan membuat website yang sekadar terlihat bagus pada screenshot.
+
+Buat website yang benar-benar bagus ketika digunakan.
+
+FINAL INSTRUCTION:
+
+Build the complete application, not just a design concept.
+
+Do not simplify the project into a landing page.
+
+Do not skip requested features.
+
+Do not replace real functionality with static mockups.
+
+Do not sacrifice design quality for development speed.
+
+Make deliberate design decisions.
+
+Prioritize exceptional visual quality, functional completeness, scientific accuracy, and an unforgettable user experience.
+
+The final product must feel like a professionally designed and engineered digital platform, not an automatically generated school assignment.
+
+PROJECT NAME: OCEAN RESCUE.
+
+TAGLINE: EVERY ACTION SAVES OUR OCEAN.
+
+SDG: 14 — LIFE BELOW WATER.

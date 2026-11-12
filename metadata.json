@@ -1,0 +1,6 @@
+{
+  "name": "OCEAN RESCUE — SDG 14: Life Below Water",
+  "description": "Platform konservasi laut interaktif premium untuk SDG 14: Life Below Water. Dilengkapi ensiklopedia spesies laut digital, simulator ekosistem, game pembersihan laut, kalkulator jejak plastik, misi aksi nyata, dan Aqua AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

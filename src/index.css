@@ -1,0 +1,94 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --deep-ocean-navy: #04131B;
+    --midnight-blue: #071E29;
+    --ocean-blue: #0B3545;
+    --turquoise: #16D9C1;
+    --soft-cyan: #70D9D0;
+    --off-white: #F1F4F2;
+    --muted-blue-gray: #8299A8;
+  }
+
+  html {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    scroll-behavior: smooth;
+    background-color: #04131B;
+    color: #F1F4F2;
+  }
+
+  body {
+    background-color: #04131B;
+    overflow-x: hidden;
+  }
+
+  /* Custom subtle refined scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #02080D;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(45, 212, 191, 0.35);
+  }
+}
+
+.font-display {
+  font-family: 'Fraunces', Georgia, serif;
+  font-optical-sizing: auto;
+}
+
+.font-sans {
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-feature-settings: "tnum";
+}
+
+/* Underwater Atmospheric Animations */
+@keyframes marineSnow {
+  0% {
+    background-position: 0 0, 0 0;
+  }
+  100% {
+    background-position: 40px 1000px, -60px 800px;
+  }
+}
+
+.marine-snow-layer {
+  background-image: 
+    radial-gradient(1.5px 1.5px at 20px 30px, rgba(157, 227, 215, 0.4), transparent),
+    radial-gradient(1px 1px at 70px 90px, rgba(53, 198, 192, 0.35), transparent);
+  background-size: 160px 160px, 240px 240px;
+  animation: marineSnow 45s linear infinite;
+}
+
+@keyframes gentleSway {
+  0%, 100% {
+    transform: rotate(-1.5deg) translateY(0);
+  }
+  50% {
+    transform: rotate(2deg) translateY(-4px);
+  }
+}
+
+.animate-sway {
+  animation: gentleSway 7s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marine-snow-layer,
+  .animate-sway {
+    animation: none !important;
+  }
+}
