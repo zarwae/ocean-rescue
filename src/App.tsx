@@ -7,7 +7,6 @@ import { ExplorerView } from './views/ExplorerView';
 import { PlasticTrackerView } from './views/PlasticTrackerView';
 import { SimulatorView } from './views/SimulatorView';
 import { GameView } from './views/GameView';
-import { AquaAIView } from './views/AquaAIView';
 import { KnowledgeView } from './views/KnowledgeView';
 import { CalculatorView } from './views/CalculatorView';
 import { MissionsView } from './views/MissionsView';
@@ -19,6 +18,8 @@ import { useUserProgress } from './hooks/useUserProgress';
 import { useTheme } from './hooks/useTheme';
 import { Sparkles, X, Award } from 'lucide-react';
 import { UnderwaterAtmosphere } from './components/UnderwaterAtmosphere';
+import { AquaAIWidget } from './components/AquaAIWidget';
+import { FishCursor } from './components/FishCursor';
 import { soundEffects } from './utils/soundEffects';
 
 const VALID_TABS: readonly ActiveTab[] = [
@@ -28,7 +29,6 @@ const VALID_TABS: readonly ActiveTab[] = [
   'tracker',
   'simulator',
   'game',
-  'aqua-ai',
   'knowledge',
   'calculator',
   'missions',
@@ -51,8 +51,15 @@ function getInitialTabFromUrl(): ActiveTab {
   return 'home';
 }
 
+function getInitialAquaOpenFromUrl(): boolean {
+  if (typeof window === 'undefined') return false;
+  const params = new URLSearchParams(window.location.search);
+  return params.get('tab') === 'aqua-ai';
+}
+
 export function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>(getInitialTabFromUrl);
+  const [isAquaChatOpen, setIsAquaChatOpen] = useState<boolean>(getInitialAquaOpenFromUrl);
   const [isMuted, setIsMuted] = useState(soundEffects.isMuted);
   const { theme, toggleTheme } = useTheme();
 
@@ -114,13 +121,17 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] flex flex-col font-sans selection:bg-[#367D7B] selection:text-[#EDEBE3] relative transition-colors duration-300">
+      {/* Global Desktop Maritime Fish Cursor */}
+      <FishCursor />
+
       {/* Subtle Ambient Atmosphere */}
-      <UnderwaterAtmosphere />
+      <UnderwaterAtmosphere hideBackToTop={isAquaChatOpen} />
 
       {/* Clean Minimalist Top Bar with Theme Switch */}
       <Navbar
         activeTab={activeTab}
         onSelectTab={handleTabSwitch}
+        onOpenAquaChat={() => setIsAquaChatOpen(true)}
         levelTitle={levelInfo.title}
         levelNumber={levelInfo.level}
         totalXp={progress.totalXp}
@@ -176,8 +187,7 @@ export function App() {
         )}
         {activeTab === 'tracker' && <PlasticTrackerView onAwardXp={addXp} theme={theme} />}
         {activeTab === 'simulator' && <SimulatorView onAwardXp={addXp} theme={theme} />}
-        {activeTab === 'game' && <GameView onAwardXp={addXp} onRecordGame={recordGamePlayed} />}
-        {activeTab === 'aqua-ai' && <AquaAIView />}
+        {activeTab === 'game' && <GameView onAwardXp={addXp} onRecordGame={recordGamePlayed} theme={theme} />}
         {activeTab === 'knowledge' && <KnowledgeView />}
         {activeTab === 'calculator' && <CalculatorView onAwardXp={addXp} />}
         {activeTab === 'missions' && (
@@ -204,8 +214,16 @@ export function App() {
         )}
       </main>
 
+      {/* Global Floating Liquid Glass Aqua AI Chat Widget */}
+      <AquaAIWidget
+        isOpen={isAquaChatOpen}
+        onOpen={() => setIsAquaChatOpen(true)}
+        onClose={() => setIsAquaChatOpen(false)}
+        activeTab={activeTab}
+      />
+
       {/* Editorial Footer */}
-      <Footer onSelectTab={handleTabSwitch} />
+      <Footer onSelectTab={handleTabSwitch} onOpenAquaChat={() => setIsAquaChatOpen(true)} />
     </div>
   );
 }

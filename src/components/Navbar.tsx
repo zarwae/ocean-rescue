@@ -28,7 +28,6 @@ export type ActiveTab =
   | 'tracker'
   | 'simulator'
   | 'game'
-  | 'aqua-ai'
   | 'knowledge'
   | 'calculator'
   | 'missions'
@@ -40,6 +39,7 @@ export type ActiveTab =
 interface NavbarProps {
   activeTab: ActiveTab;
   onSelectTab: (tab: ActiveTab) => void;
+  onOpenAquaChat: () => void;
   levelTitle: string;
   levelNumber: number;
   totalXp: number;
@@ -53,6 +53,7 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   onSelectTab,
+  onOpenAquaChat,
   levelTitle,
   levelNumber,
   totalXp,
@@ -120,20 +121,34 @@ export const Navbar: React.FC<NavbarProps> = ({
     { tab: 'data', label: 'Visualisasi Data Resmi', icon: <BarChart3 className="w-3.5 h-3.5 text-[var(--accent-teal)]" /> },
     { tab: 'calculator', label: 'Kalkulator Jejak Plastik', icon: <Calculator className="w-3.5 h-3.5 text-[var(--accent-sand)]" /> },
     { tab: 'quiz', label: 'Tantangan Kuis Sains', icon: <HelpCircle className="w-3.5 h-3.5 text-[var(--accent-teal)]" /> },
-    { tab: 'aqua-ai', label: 'Aqua AI Riset Kelautan', icon: <Bot className="w-3.5 h-3.5 text-[var(--accent-teal)]" /> },
     { tab: 'dashboard', label: 'Explorer Passport', icon: <User className="w-3.5 h-3.5 text-[var(--accent-sand)]" /> },
   ];
 
   const isSecondaryActive = secondaryHubItems.some((item) => item.tab === activeTab);
   const overHero = activeTab === 'home' && !isScrolled;
 
-  const navHeaderSurface = overHero
-    ? 'bg-gradient-to-b from-[var(--bg-canvas)]/88 via-[var(--bg-canvas)]/45 to-transparent py-5 text-[var(--text-primary)]'
-    : 'liquid-glass !border-x-0 !border-t-0 py-3 text-[var(--text-primary)]';
-
   return (
-    <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${navHeaderSurface}`}>
-      <div className="max-w-[1380px] mx-auto px-4 sm:px-6 lg:px-8">
+    <header
+      className={`fixed top-0 left-0 right-0 z-50 border-0 shadow-none text-[var(--text-primary)] transition-[padding] duration-[350ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
+        overHero ? 'py-5' : 'py-3'
+      }`}
+    >
+      {/* Layer 1: Hero Top-Fade Transparent Backdrop */}
+      <div
+        aria-hidden="true"
+        className={`pointer-events-none absolute inset-0 bg-gradient-to-b from-[var(--bg-canvas)]/88 via-[var(--bg-canvas)]/45 to-transparent transition-opacity duration-[350ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
+          overHero ? 'opacity-100' : 'opacity-0'
+        }`}
+      />
+      {/* Layer 2: Scrolled Liquid Glass Blue Backdrop */}
+      <div
+        aria-hidden="true"
+        className={`liquid-glass pointer-events-none absolute inset-0 !border-x-0 !border-t-0 !shadow-none transition-opacity duration-[350ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
+          overHero ? 'opacity-0' : 'opacity-100'
+        }`}
+      />
+
+      <div className="relative z-10 max-w-[1380px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between gap-4 xl:gap-6">
           {/* Editorial Brand Lockup */}
           <button
@@ -326,6 +341,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                         </button>
                       );
                     })}
+                    <button
+                      onClick={() => {
+                        soundEffects.playBubblePop();
+                        setExplorerOpen(false);
+                        onOpenAquaChat();
+                      }}
+                      className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)]/60 transition-colors cursor-pointer"
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <Bot className="w-3.5 h-3.5 text-[var(--accent-teal)]" />
+                        <span>Aqua AI Riset Kelautan</span>
+                      </span>
+                      <ArrowUpRight className="w-3 h-3 opacity-40" />
+                    </button>
                   </div>
                 </div>
               )}
@@ -372,7 +401,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Smooth Mobile / Tablet Drawer */}
       {mobileMenuOpen && (
-        <div className="lg:hidden bg-[var(--bg-elevated)] border-b border-[var(--border-hairline)] px-4 pt-3 pb-6 max-h-[85vh] overflow-y-auto shadow-2xl text-[var(--text-primary)]">
+        <div className="relative z-10 lg:hidden bg-[var(--bg-elevated)] border-b border-[var(--border-hairline)] px-4 pt-3 pb-6 max-h-[85vh] overflow-y-auto shadow-2xl text-[var(--text-primary)]">
           <div className="flex items-center justify-between py-3 border-b border-[var(--border-hairline)] mb-3">
             <div className="text-xs text-[var(--accent-sand)]">
               Lvl {levelNumber} · {levelTitle} ·{' '}
@@ -426,6 +455,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span>{item.label}</span>
                 </button>
               ))}
+              <button
+                onClick={() => {
+                  soundEffects.playBubblePop();
+                  setMobileMenuOpen(false);
+                  onOpenAquaChat();
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-left text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+              >
+                <Bot className="w-3.5 h-3.5 text-[var(--accent-teal)]" />
+                <span>Aqua AI Riset Kelautan</span>
+              </button>
             </div>
           </div>
         </div>

@@ -501,7 +501,11 @@ export const NewsView: React.FC<NewsViewProps> = ({
 
       {/* Clean Underline Controls + Optional Interest Picker */}
       <div className="border-b border-[var(--border-hairline)] pb-3 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-6 overflow-x-auto" role="tablist" aria-label="Filter Berita">
+        <div
+          className="flex items-center gap-6 overflow-x-auto overflow-y-hidden self-end -mb-[13px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          role="tablist"
+          aria-label="Filter Berita"
+        >
           <button
             type="button"
             role="tab"
@@ -510,10 +514,10 @@ export const NewsView: React.FC<NewsViewProps> = ({
               soundEffects.playBubblePop();
               setFeedFilter('for-you');
             }}
-            className={`relative pb-3 -mb-3.5 text-sm transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+            className={`relative pt-1 pb-3 border-b-2 text-sm transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
               feedFilter === 'for-you'
-                ? 'text-[var(--text-primary)] font-semibold border-b-2 border-[var(--accent-teal)]'
-                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                ? 'text-[var(--text-primary)] font-semibold border-[var(--accent-teal)]'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-transparent'
             }`}
           >
             Untuk Anda
@@ -527,10 +531,10 @@ export const NewsView: React.FC<NewsViewProps> = ({
               soundEffects.playBubblePop();
               setFeedFilter('all');
             }}
-            className={`relative pb-3 -mb-3.5 text-sm transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+            className={`relative pt-1 pb-3 border-b-2 text-sm transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
               feedFilter === 'all'
-                ? 'text-[var(--text-primary)] font-semibold border-b-2 border-[var(--accent-teal)]'
-                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                ? 'text-[var(--text-primary)] font-semibold border-[var(--accent-teal)]'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-transparent'
             }`}
           >
             Semua Berita
@@ -544,10 +548,10 @@ export const NewsView: React.FC<NewsViewProps> = ({
               soundEffects.playBubblePop();
               setFeedFilter('saved');
             }}
-            className={`relative pb-3 -mb-3.5 text-sm transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+            className={`relative pt-1 pb-3 border-b-2 text-sm transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
               feedFilter === 'saved'
-                ? 'text-[var(--text-primary)] font-semibold border-b-2 border-[var(--accent-teal)]'
-                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                ? 'text-[var(--text-primary)] font-semibold border-[var(--accent-teal)]'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-transparent'
             }`}
           >
             Tersimpan <span className="tabular-nums opacity-75">({state.savedIds.length})</span>

@@ -215,7 +215,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate, theme = 'dark' }
   return (
     <div ref={homeRootRef} className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)]">
       {/* 1. CINEMATIC HERO WITH SCROLL TRANSFORMATION */}
-      <section className="hero-section relative min-h-[96vh] flex items-center justify-center pt-28 pb-20 px-4 sm:px-6 lg:px-8 overflow-hidden bg-[var(--bg-canvas)] text-[var(--text-primary)] transition-colors duration-300">
+      <section className="hero-section relative min-h-screen flex items-center justify-center pt-28 pb-20 px-4 sm:px-6 lg:px-8 overflow-hidden bg-[var(--bg-canvas)] text-[var(--text-primary)] transition-colors duration-300">
         <div className="hero-bg-photo absolute inset-0 z-0 will-change-transform">
           <img
             src={heroOceanImg}
@@ -235,8 +235,13 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate, theme = 'dark' }
           </div>
 
           <div className="space-y-4">
-            <h1 className="font-display text-5xl sm:text-7xl lg:text-[5.5rem] tracking-tight text-[var(--text-primary)] leading-[1.04] text-balance">
-              The ocean is <span className="italic font-normal text-[var(--accent-teal)]">calling.</span>
+            <h1 className="font-display text-5xl sm:text-7xl lg:text-[5.5rem] tracking-tight text-[var(--text-primary)] leading-[1.08] text-balance">
+              <span className="inline-block animate-ocean-wave">The</span>{' '}
+              <span className="inline-block animate-ocean-wave ocean-wave-delay-1">ocean</span>{' '}
+              <span className="inline-block animate-ocean-wave ocean-wave-delay-2">is</span>{' '}
+              <span className="inline-block animate-ocean-wave ocean-wave-delay-3">
+                <span className="italic font-normal ocean-caustic-text inline-block pt-2 -mt-2 pb-4 -mb-4 pl-1 -ml-1 pr-2.5 -mr-1">calling.</span>
+              </span>
             </h1>
             <p className="max-w-2xl mx-auto text-base sm:text-lg text-[var(--text-secondary)] font-light leading-relaxed text-balance">
               Penjelajahan interaktif atas keindahan biosfer bawah air, pelacakan polusi plastik global, dan ikhtiar sains untuk merestorasi masa depan biru.

@@ -3,7 +3,11 @@ import { motion, useScroll, useTransform } from 'motion/react';
 import { ArrowUp } from 'lucide-react';
 import { soundEffects } from '../utils/soundEffects';
 
-export const UnderwaterAtmosphere: React.FC = () => {
+interface UnderwaterAtmosphereProps {
+  hideBackToTop?: boolean;
+}
+
+export const UnderwaterAtmosphere: React.FC<UnderwaterAtmosphereProps> = ({ hideBackToTop = false }) => {
   const { scrollYProgress } = useScroll();
   const [showBackToTop, setShowBackToTop] = useState(false);
 
@@ -39,8 +43,8 @@ export const UnderwaterAtmosphere: React.FC = () => {
       </div>
 
       {/* QUIET BACK-TO-SURFACE BUTTON ON DEEP SCROLL */}
-      {showBackToTop && (
-        <aside aria-label="Navigasi Permukaan" className="fixed bottom-5 right-5 z-40">
+      {showBackToTop && !hideBackToTop && (
+        <aside aria-label="Navigasi Permukaan" className="fixed bottom-32 right-5 z-40">
           <motion.button
             initial={{ scale: 0.85, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}

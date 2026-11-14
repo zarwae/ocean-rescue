@@ -232,15 +232,192 @@ html.dark,
   animation: bubbleRise 6.5s ease-in infinite;
 }
 
+@keyframes oceanFloat {
+  0%, 100% {
+    transform: translate3d(0px, 0px, 0) rotate(0deg);
+  }
+  25% {
+    transform: translate3d(1.5px, -4.5px, 0) rotate(-0.45deg);
+  }
+  50% {
+    transform: translate3d(0px, 0.5px, 0) rotate(0.2deg);
+  }
+  75% {
+    transform: translate3d(-1.5px, 3.5px, 0) rotate(0.45deg);
+  }
+}
+
+@keyframes oceanCausticShimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-ocean-wave {
+  animation: oceanFloat 6.5s ease-in-out infinite;
+  will-change: transform;
+}
+
+.ocean-wave-delay-1 {
+  animation-delay: -1.1s;
+}
+
+.ocean-wave-delay-2 {
+  animation-delay: -2.2s;
+}
+
+.ocean-wave-delay-3 {
+  animation-delay: -3.3s;
+}
+
+.ocean-caustic-text {
+  background-image: linear-gradient(
+    110deg,
+    #1D6664 0%,
+    #1D6664 32%,
+    #389691 50%,
+    #1D6664 68%,
+    #1D6664 100%
+  );
+  background-size: 240% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: oceanCausticShimmer 7.5s ease-in-out infinite;
+}
+
+.dark .ocean-caustic-text {
+  background-image: linear-gradient(
+    110deg,
+    #82AAA1 0%,
+    #82AAA1 32%,
+    #CBE5DE 50%,
+    #82AAA1 68%,
+    #82AAA1 100%
+  );
+}
+
 @media (prefers-reduced-motion: reduce) {
   .marine-snow-layer,
   .animate-sway,
   .animate-current-flow,
   .animate-reef-swim,
-  .animate-bubble-rise {
+  .animate-bubble-rise,
+  .animate-ocean-wave,
+  .ocean-caustic-text,
+  .fish-cursor-ripple,
+  .fish-cursor-bubble {
     animation: none !important;
+  }
+  .ocean-caustic-text,
+  .dark .ocean-caustic-text {
+    background-image: none;
+    color: var(--accent-teal);
+    -webkit-text-fill-color: var(--accent-teal);
   }
   html {
     scroll-behavior: auto;
   }
+}
+
+/* Interactive Maritime Fish Cursor (Desktop fine-pointer only) */
+@media (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  html.fish-cursor-active,
+  html.fish-cursor-active * {
+    cursor: none !important;
+  }
+}
+
+@keyframes fishCursorRipple {
+  0% {
+    transform: translate(-50%, -50%) scale(0.25);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.4);
+    opacity: 0;
+  }
+}
+
+@keyframes fishCursorBubble1 {
+  0% {
+    transform: translate3d(0px, 0px, 0) scale(0.5);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate3d(-11px, -30px, 0) scale(1.1);
+    opacity: 0;
+  }
+}
+
+@keyframes fishCursorBubble2 {
+  0% {
+    transform: translate3d(0px, 0px, 0) scale(0.55);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate3d(10px, -34px, 0) scale(1.15);
+    opacity: 0;
+  }
+}
+
+@keyframes fishCursorBubble3 {
+  0% {
+    transform: translate3d(0px, 0px, 0) scale(0.45);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate3d(-4px, -24px, 0) scale(0.95);
+    opacity: 0;
+  }
+}
+
+@keyframes fishCursorBubble4 {
+  0% {
+    transform: translate3d(0px, 0px, 0) scale(0.5);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate3d(14px, -21px, 0) scale(0.9);
+    opacity: 0;
+  }
+}
+
+.fish-cursor-ripple {
+  animation: fishCursorRipple 0.62s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.fish-cursor-bubble-1 {
+  animation: fishCursorBubble1 0.64s ease-out forwards;
+}
+
+.fish-cursor-bubble-2 {
+  animation: fishCursorBubble2 0.68s ease-out 0.04s forwards;
+}
+
+.fish-cursor-bubble-3 {
+  animation: fishCursorBubble3 0.58s ease-out 0.06s forwards;
+}
+
+.fish-cursor-bubble-4 {
+  animation: fishCursorBubble4 0.62s ease-out 0.02s forwards;
 }

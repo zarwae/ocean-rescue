@@ -4,9 +4,10 @@ import { ActiveTab } from './Navbar';
 
 interface FooterProps {
   onSelectTab: (tab: ActiveTab) => void;
+  onOpenAquaChat: () => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ onSelectTab }) => {
+export const Footer: React.FC<FooterProps> = ({ onSelectTab, onOpenAquaChat }) => {
   return (
     <footer className="bg-[var(--bg-surface)] text-[var(--text-secondary)] border-t border-[var(--border-hairline)] pt-16 pb-12 transition-colors duration-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -154,7 +155,7 @@ export const Footer: React.FC<FooterProps> = ({ onSelectTab }) => {
               </li>
               <li>
                 <button
-                  onClick={() => onSelectTab('aqua-ai')}
+                  onClick={onOpenAquaChat}
                   className="hover:text-[var(--text-primary)] transition-colors text-left flex items-center gap-1 cursor-pointer"
                 >
                   <span>Aqua AI Riset Kelautan</span>
