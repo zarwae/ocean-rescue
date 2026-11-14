@@ -1,11 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { 
-  Search, 
-  Clock, 
-  Calendar, 
-  ArrowRight, 
-  ChevronLeft
-} from 'lucide-react';
+import { Search, Clock, Calendar, ArrowRight, ChevronLeft } from 'lucide-react';
 import { ARTICLES_DATABASE, KnowledgeArticle } from '../data/articlesData';
 import { ImageWithFallback } from '../components/ImageWithFallback';
 
@@ -21,7 +15,7 @@ export const KnowledgeView: React.FC = () => {
 
   const filteredArticles = useMemo(() => {
     return ARTICLES_DATABASE.filter((art) => {
-      const matchSearch = 
+      const matchSearch =
         art.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         art.leadParagraph.toLowerCase().includes(searchQuery.toLowerCase()) ||
         art.category.toLowerCase().includes(searchQuery.toLowerCase());
@@ -33,54 +27,49 @@ export const KnowledgeView: React.FC = () => {
   }, [searchQuery, selectedCategory]);
 
   return (
-    <div className="min-h-screen bg-[#040D14] text-[#F1F5F9] pt-28 pb-20 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto space-y-10">
-        
-        {/* If reader mode is open, show article detail */}
+    <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] pt-28 pb-24 px-4 sm:px-6 lg:px-8 transition-colors duration-300">
+      <div className="max-w-6xl mx-auto space-y-10">
+
         {selectedArticle ? (
-          <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in duration-200">
-            
-            {/* Back button */}
+          <article className="max-w-3xl mx-auto space-y-8 animate-in fade-in duration-200">
             <button
               onClick={() => {
                 setSelectedArticle(null);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.1] text-xs font-medium text-slate-300 hover:text-white transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" />
               <span>Kembali ke Katalog Pustaka</span>
             </button>
 
-            {/* Article Header */}
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center gap-2 text-xs font-mono text-slate-500">
-                <span className="text-teal-400 font-medium">
+            <header className="space-y-4">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)]">
+                <span className="text-[var(--accent-teal)] font-medium">
                   {selectedArticle.category}
                 </span>
                 <span>·</span>
-                <span className="flex items-center gap-1">
+                <span className="inline-flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5" />
                   {selectedArticle.readTimeMinutes} Menit Membaca
                 </span>
                 <span>·</span>
-                <span className="flex items-center gap-1">
+                <span className="inline-flex items-center gap-1">
                   <Calendar className="w-3.5 h-3.5" />
                   {selectedArticle.publishDate}
                 </span>
               </div>
 
-              <h1 className="font-display font-medium text-3xl sm:text-5xl text-white leading-tight tracking-tight">
+              <h1 className="font-display font-light text-3xl sm:text-5xl text-[var(--text-primary)] leading-tight tracking-tight">
                 {selectedArticle.title}
               </h1>
 
-              <div className="text-xs text-slate-400 font-mono">
-                Penulis: {selectedArticle.author}
+              <div className="text-xs text-[var(--text-muted)]">
+                Ditulis oleh {selectedArticle.author}
               </div>
-            </div>
+            </header>
 
-            {/* Featured Image */}
-            <div className="rounded-2xl overflow-hidden border border-white/[0.08] shadow-2xl">
+            <div className="rounded-2xl overflow-hidden bg-[var(--bg-surface)]">
               <ImageWithFallback
                 src={selectedArticle.coverImage}
                 alt={selectedArticle.title}
@@ -88,120 +77,104 @@ export const KnowledgeView: React.FC = () => {
               />
             </div>
 
-            {/* Article Body */}
-            <div className="space-y-6 text-sm text-slate-300 leading-relaxed max-w-prose">
-              <p className="text-base text-slate-200 font-medium leading-relaxed border-l-2 border-teal-400 pl-4 py-1">
+            <div className="space-y-6 max-w-prose">
+              <p className="font-display text-lg sm:text-xl text-[var(--text-primary)] leading-relaxed">
                 {selectedArticle.leadParagraph}
               </p>
 
               {selectedArticle.contentSections.map((sec, idx) => (
-                <div key={idx} className="space-y-2 pt-2">
-                  <h3 className="font-display font-medium text-xl text-white">
+                <section key={idx} className="space-y-2 pt-2">
+                  <h2 className="font-display font-medium text-xl text-[var(--text-primary)]">
                     {sec.heading}
-                  </h3>
-                  <p className="text-slate-300 leading-relaxed text-sm">
+                  </h2>
+                  <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
                     {sec.body}
                   </p>
-                </div>
+                </section>
               ))}
             </div>
 
-            {/* Scientific References */}
-            <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.08] text-xs text-slate-400 font-mono space-y-1">
-              <span className="font-medium text-slate-200 block">Rujukan Publikasi & Sumber:</span>
-              <div>{selectedArticle.references.join(' • ')}</div>
+            <div className="pt-6 border-t border-[var(--border-hairline)] text-xs text-[var(--text-muted)] space-y-1">
+              <span className="font-medium text-[var(--text-primary)] block">Rujukan Publikasi:</span>
+              <div>{selectedArticle.references.join(' · ')}</div>
             </div>
 
-            {/* Back button bottom */}
-            <div className="pt-6 border-t border-white/[0.08] text-center">
+            <div className="pt-4">
               <button
                 onClick={() => {
                   setSelectedArticle(null);
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
-                className="px-6 py-2.5 rounded-lg bg-teal-400 text-slate-950 text-xs font-semibold hover:bg-teal-300 transition-all cursor-pointer"
+                className="px-6 py-2.5 rounded-full bg-[#367D7B] hover:bg-[#267472] text-[#EDEBE3] text-xs font-semibold transition-colors cursor-pointer"
               >
                 Kembali ke Katalog Pustaka
               </button>
             </div>
-
-          </div>
+          </article>
         ) : (
-          /* Articles Catalog Overview */
           <>
-            {/* Header */}
-            <div className="space-y-3 max-w-3xl">
-              <div className="text-xs text-teal-400 font-medium tracking-wide">
-                Pustaka Riset & Artikel Sains · SDG 14
+            {/* Editorial Header */}
+            <header className="space-y-3 max-w-3xl">
+              <div className="text-[11px] font-medium tracking-[0.22em] text-[var(--accent-teal)] uppercase">
+                Pustaka Riset · SDG 14
               </div>
-              <h1 className="font-display text-4xl sm:text-6xl text-white tracking-tight">
+              <h1 className="font-display font-light text-3xl sm:text-5xl text-[var(--text-primary)] tracking-tight">
                 Pustaka Pengetahuan Samudra
               </h1>
-              <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-                Jurnal artikel sains editorial mendalam mengenai 12 topik pilar SDG 14: Life Below Water, ditulis dengan fakta terverifikasi dan bahasa yang mudah dipahami.
+              <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
+                Dua belas esai sains terkurasi mengenai pilar konservasi laut, pemanasan global, dan keanekaragaman hayati samudra.
               </p>
-            </div>
+            </header>
 
-            {/* Search and Category Filter */}
-            <div className="p-4 sm:p-6 rounded-2xl bg-white/[0.02] border border-white/[0.08] space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                <div className="md:col-span-8 relative">
-                  <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-                  <input
-                    type="text"
-                    placeholder="Cari artikel ilmiah berdasarkan judul, kata kunci, atau tema..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.1] text-xs text-white placeholder-slate-500 focus:outline-none focus:border-teal-400/80 transition-colors"
-                  />
-                </div>
-
-                <div className="md:col-span-4">
-                  <select
-                    value={selectedCategory}
-                    onChange={(e) => setSelectedCategory(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.1] text-xs text-white focus:outline-none"
-                  >
-                    {categories.map((c) => (
-                      <option key={c} value={c} className="bg-[#040D14]">
-                        {c === 'Semua' ? 'Semua Kategori Jurnal' : c}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+            {/* Hairline Search + Underline Category Tabs */}
+            <div className="space-y-5">
+              <div className="relative max-w-md border-b border-[var(--border-hairline)]">
+                <Search className="w-4 h-4 absolute left-0 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                <input
+                  type="text"
+                  placeholder="Cari judul atau tema artikel..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-7 pr-2 py-2.5 bg-transparent text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none"
+                />
               </div>
 
-              {/* Quick Category Chips */}
-              <div className="flex flex-wrap gap-1.5 pt-2 border-t border-white/[0.06]">
-                {categories.map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => setSelectedCategory(c)}
-                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-                      selectedCategory === c
-                        ? 'bg-white/[0.12] text-white border border-white/[0.15]'
-                        : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
-                    }`}
-                  >
-                    {c}
-                  </button>
-                ))}
+              <div className="flex items-center gap-6 overflow-x-auto border-b border-[var(--border-hairline)]">
+                {categories.map((c) => {
+                  const active = selectedCategory === c;
+                  return (
+                    <button
+                      key={c}
+                      onClick={() => setSelectedCategory(c)}
+                      className={`pb-3 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer relative ${
+                        active
+                          ? 'text-[var(--text-primary)]'
+                          : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                      }`}
+                    >
+                      {c}
+                      {active && (
+                        <span className="absolute bottom-0 inset-x-0 h-[1.5px] bg-[var(--accent-teal)]" />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Articles Grid (12 Articles) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Borderless Editorial Articles Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-12">
               {filteredArticles.map((art) => (
                 <article
                   key={art.id}
-                  className="group rounded-2xl bg-white/[0.02] border border-white/[0.08] hover:border-teal-400/40 hover:bg-white/[0.04] transition-all flex flex-col justify-between overflow-hidden shadow-lg cursor-pointer"
                   onClick={() => {
                     setSelectedArticle(art);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
+                  className="group flex flex-col justify-between space-y-4 cursor-pointer"
                 >
-                  <div>
-                    <div className="overflow-hidden">
+                  <div className="space-y-4">
+                    <div className="rounded-xl overflow-hidden bg-[var(--bg-surface)]">
                       <ImageWithFallback
                         src={art.coverImage}
                         alt={art.title}
@@ -210,25 +183,27 @@ export const KnowledgeView: React.FC = () => {
                       />
                     </div>
 
-                    <div className="p-6 space-y-3">
-                      <div className="flex items-center justify-between text-[11px] font-mono text-slate-500">
-                        <span className="text-teal-400 font-medium">{art.category}</span>
-                        <span>{art.readTimeMinutes} Min Baca</span>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)]">
+                        <span className="text-[var(--accent-teal)] font-medium uppercase tracking-wider">
+                          {art.category}
+                        </span>
+                        <span>{art.readTimeMinutes} Menit Baca</span>
                       </div>
 
-                      <h3 className="font-display font-medium text-lg text-white group-hover:text-teal-300 transition-colors leading-snug">
+                      <h3 className="font-display font-medium text-xl text-[var(--text-primary)] group-hover:text-[var(--accent-teal)] transition-colors leading-snug">
                         {art.title}
                       </h3>
 
-                      <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+                      <p className="text-xs text-[var(--text-secondary)] line-clamp-2 leading-relaxed">
                         {art.leadParagraph}
                       </p>
                     </div>
                   </div>
 
-                  <div className="p-6 pt-0 flex items-center justify-between text-xs border-t border-white/[0.06] mt-4 pt-3 text-slate-500 font-mono">
+                  <div className="flex items-center justify-between text-xs pt-3 border-t border-[var(--border-hairline)] text-[var(--text-muted)]">
                     <span>{art.publishDate}</span>
-                    <span className="text-teal-400 group-hover:translate-x-1 transition-transform inline-flex items-center gap-1 font-medium">
+                    <span className="text-[var(--accent-teal)] group-hover:translate-x-1 transition-transform inline-flex items-center gap-1 font-medium">
                       Baca Lengkap <ArrowRight className="w-3.5 h-3.5" />
                     </span>
                   </div>

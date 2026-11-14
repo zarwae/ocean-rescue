@@ -10,9 +10,22 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+function getCliArg(flag: string): string | undefined {
+  const idx = process.argv.indexOf(flag);
+  if (idx !== -1 && idx + 1 < process.argv.length) {
+    return process.argv[idx + 1];
+  }
+  const prefix = `${flag}=`;
+  const eqArg = process.argv.find((arg) => arg.startsWith(prefix));
+  return eqArg ? eqArg.slice(prefix.length) : undefined;
+}
+
 async function startServer() {
   const app = express();
-  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+  const portArg = getCliArg('--port');
+  const hostArg = getCliArg('--host');
+  const PORT = portArg ? parseInt(portArg, 10) : (process.env.PORT ? parseInt(process.env.PORT, 10) : 3000);
+  const HOST = hostArg || process.env.HOST || '0.0.0.0';
 
   app.use(express.json());
 
@@ -121,9 +134,17 @@ Pedoman Anda:
     app.use(vite.middlewares);
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, HOST, () => {
     console.log(`OCEAN RESCUE server running at http://localhost:${PORT}`);
+  });
+
+  server.on('error', (err) => {
+    console.error('Server listen error:', err);
+    process.exit(1);
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error('Failed to start OCEAN RESCUE server:', err);
+  process.exit(1);
+});

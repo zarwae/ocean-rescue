@@ -1,27 +1,63 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
+@theme {
+  --font-sans: 'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Playfair Display', Georgia, serif;
+}
+
+:root {
+  color-scheme: light;
+  --bg-canvas: #F7F6F1;
+  --bg-surface: #ECEAE1;
+  --bg-elevated: #FFFFFF;
+  --text-primary: #0B1E27;
+  --text-secondary: #425B66;
+  --text-muted: #5F7782;
+  --accent-teal: #1D6664;
+  --accent-teal-bg: #267472;
+  --accent-sand: #876B3A;
+  --accent-coral: #B84F3C;
+  --border-hairline: rgba(11, 30, 39, 0.11);
+  --border-strong: rgba(11, 30, 39, 0.22);
+  --chart-grid: rgba(11, 30, 39, 0.10);
+}
+
+html.dark,
+.dark {
+  color-scheme: dark;
+  --bg-canvas: #061116;
+  --bg-surface: #091C25;
+  --bg-elevated: #0E2632;
+  --text-primary: #EDEBE3;
+  --text-secondary: #98ACB5;
+  --text-muted: #7C929C;
+  --accent-teal: #82AAA1;
+  --accent-teal-bg: #367D7B;
+  --accent-sand: #C7B99E;
+  --accent-coral: #D98270;
+  --border-hairline: rgba(237, 235, 227, 0.09);
+  --border-strong: rgba(237, 235, 227, 0.22);
+  --chart-grid: rgba(130, 170, 161, 0.14);
+}
+
 @layer base {
-  :root {
-    --deep-ocean-navy: #04131B;
-    --midnight-blue: #071E29;
-    --ocean-blue: #0B3545;
-    --turquoise: #16D9C1;
-    --soft-cyan: #70D9D0;
-    --off-white: #F1F4F2;
-    --muted-blue-gray: #8299A8;
-  }
 
   html {
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     scroll-behavior: smooth;
-    background-color: #04131B;
-    color: #F1F4F2;
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
   }
 
   body {
-    background-color: #04131B;
-    overflow-x: hidden;
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+    overflow-x: clip;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.25s ease, color 0.25s ease;
   }
 
   /* Custom subtle refined scrollbar */
@@ -30,29 +66,89 @@
     height: 6px;
   }
   ::-webkit-scrollbar-track {
-    background: #02080D;
+    background: var(--bg-canvas);
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.12);
+    background: rgba(130, 170, 161, 0.28);
     border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(45, 212, 191, 0.35);
+    background: rgba(54, 125, 123, 0.55);
   }
 }
 
 .font-display {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: 'Playfair Display', Georgia, serif;
   font-optical-sizing: auto;
 }
 
 .font-sans {
-  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
 }
 
 .font-mono {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
+}
+
+/* Subtle Apple-Inspired Liquid Glass (Used sparingly for floating chrome & HUD overlays) */
+.liquid-glass {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(247, 246, 241, 0.56));
+  backdrop-filter: blur(24px) saturate(175%);
+  -webkit-backdrop-filter: blur(24px) saturate(175%);
+  border: 1px solid rgba(11, 30, 39, 0.07);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    inset 0 -1px 0 rgba(11, 30, 39, 0.04),
+    0 12px 32px -10px rgba(11, 30, 39, 0.12);
+}
+
+.dark .liquid-glass {
+  background: linear-gradient(135deg, rgba(22, 56, 70, 0.56), rgba(9, 25, 34, 0.46));
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.17),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22),
+    0 16px 36px -10px rgba(2, 8, 12, 0.6);
+}
+
+.liquid-glass-pill {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.78), rgba(236, 234, 225, 0.58));
+  backdrop-filter: blur(20px) saturate(170%);
+  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  border: 1px solid rgba(11, 30, 39, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 8px 20px -6px rgba(11, 30, 39, 0.1);
+}
+
+.dark .liquid-glass-pill {
+  background: linear-gradient(145deg, rgba(26, 65, 80, 0.52), rgba(9, 26, 35, 0.44));
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 10px 24px -8px rgba(2, 8, 12, 0.55);
+}
+
+.liquid-glass-hud {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.78), rgba(230, 245, 244, 0.66));
+  backdrop-filter: blur(20px) saturate(165%);
+  -webkit-backdrop-filter: blur(20px) saturate(165%);
+  border: 1px solid rgba(11, 46, 58, 0.12);
+  color: #0B2530;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 8px 24px -6px rgba(13, 62, 78, 0.16);
+}
+
+.dark .liquid-glass-hud {
+  background: linear-gradient(145deg, rgba(11, 30, 40, 0.64), rgba(6, 17, 22, 0.54));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #EDEBE3;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 10px 26px -8px rgba(2, 8, 12, 0.55);
 }
 
 /* Underwater Atmospheric Animations */
@@ -66,11 +162,11 @@
 }
 
 .marine-snow-layer {
-  background-image: 
-    radial-gradient(1.5px 1.5px at 20px 30px, rgba(157, 227, 215, 0.4), transparent),
-    radial-gradient(1px 1px at 70px 90px, rgba(53, 198, 192, 0.35), transparent);
-  background-size: 160px 160px, 240px 240px;
-  animation: marineSnow 45s linear infinite;
+  background-image:
+    radial-gradient(1.25px 1.25px at 24px 36px, rgba(130, 170, 161, 0.28), transparent),
+    radial-gradient(1px 1px at 84px 110px, rgba(237, 235, 227, 0.16), transparent);
+  background-size: 180px 180px, 260px 260px;
+  animation: marineSnow 54s linear infinite;
 }
 
 @keyframes gentleSway {
@@ -86,9 +182,65 @@
   animation: gentleSway 7s ease-in-out infinite;
 }
 
+@keyframes flowDash {
+  to {
+    stroke-dashoffset: -36;
+  }
+}
+
+.animate-current-flow {
+  animation: flowDash 2.6s linear infinite;
+}
+
+@keyframes reefSwim {
+  0%, 100% {
+    transform: translate3d(0px, 0px, 0);
+  }
+  25% {
+    transform: translate3d(18px, -6px, 0);
+  }
+  50% {
+    transform: translate3d(34px, 3px, 0);
+  }
+  75% {
+    transform: translate3d(14px, 7px, 0);
+  }
+}
+
+@keyframes bubbleRise {
+  0% {
+    transform: translateY(0px) scale(0.85);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.65;
+  }
+  80% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translateY(-95px) scale(1.1);
+    opacity: 0;
+  }
+}
+
+.animate-reef-swim {
+  animation: reefSwim 9s ease-in-out infinite;
+}
+
+.animate-bubble-rise {
+  animation: bubbleRise 6.5s ease-in infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .marine-snow-layer,
-  .animate-sway {
+  .animate-sway,
+  .animate-current-flow,
+  .animate-reef-swim,
+  .animate-bubble-rise {
     animation: none !important;
+  }
+  html {
+    scroll-behavior: auto;
   }
 }

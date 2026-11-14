@@ -1,15 +1,5 @@
 import React, { useState } from 'react';
-import { 
-  Award, 
-  Compass, 
-  CheckSquare, 
-  Gamepad2, 
-  Heart, 
-  HelpCircle, 
-  Edit2,
-  Check,
-  Trash2
-} from 'lucide-react';
+import { Award, Compass, Edit2, Check, Trash2 } from 'lucide-react';
 import { UserProgress, getLevelInfo } from '../hooks/useUserProgress';
 import { ACHIEVEMENTS_LIST } from '../data/missionsData';
 import { SPECIES_DATABASE } from '../data/speciesData';
@@ -45,17 +35,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const favoriteSpeciesData = SPECIES_DATABASE.filter((s) => progress.favoriteSpecies.includes(s.id));
 
   return (
-    <div className="min-h-screen bg-[#040D14] text-[#F1F5F9] pt-28 pb-20 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto space-y-10">
-        
-        {/* Header Passport Card with Softer Borders */}
-        <div className="p-6 sm:p-8 rounded-2xl bg-white/[0.02] border border-white/[0.08] shadow-2xl relative overflow-hidden backdrop-blur-md">
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-            
-            {/* User Avatar & Title */}
-            <div className="flex items-center gap-5">
-              <div className="w-16 h-16 rounded-xl bg-teal-500/10 border border-teal-500/25 flex items-center justify-center text-teal-400 shrink-0">
-                <Compass className="w-8 h-8 stroke-[1.75]" />
+    <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] pt-28 pb-24 px-4 sm:px-6 lg:px-8 transition-colors duration-300">
+      <div className="max-w-5xl mx-auto space-y-14">
+
+        {/* Open Passport Header */}
+        <section className="pb-8 border-b border-[var(--border-hairline)] space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-[var(--accent-teal-bg)] flex items-center justify-center text-[var(--accent-teal)] shrink-0">
+                <Compass className="w-7 h-7 stroke-[1.6]" />
               </div>
 
               <div className="space-y-1">
@@ -66,24 +54,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         type="text"
                         value={nameInput}
                         onChange={(e) => setNameInput(e.target.value)}
-                        className="px-3 py-1 rounded-lg bg-white/[0.04] border border-teal-400 text-sm text-white focus:outline-none"
+                        onKeyDown={(e) => e.key === 'Enter' && handleSaveName()}
+                        className="px-2 py-1 bg-transparent border-b border-[var(--accent-teal)] text-base text-[var(--text-primary)] focus:outline-none"
                       />
                       <button
                         onClick={handleSaveName}
-                        className="p-1.5 rounded-lg bg-teal-400 text-slate-950 cursor-pointer"
+                        className="p-1.5 rounded-full bg-[#367D7B] text-[#EDEBE3] cursor-pointer"
                         aria-label="Simpan Nama"
                       >
-                        <Check className="w-4 h-4" />
+                        <Check className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   ) : (
                     <>
-                      <h1 className="font-display font-medium text-2xl sm:text-3xl text-white">
+                      <h1 className="font-display font-light text-2xl sm:text-4xl text-[var(--text-primary)] tracking-tight">
                         {progress.username}
                       </h1>
                       <button
                         onClick={() => setIsEditingName(true)}
-                        className="p-1 rounded-lg text-slate-400 hover:text-white transition-colors cursor-pointer"
+                        className="p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                         title="Ubah nama penjelajah"
                         aria-label="Ubah Nama"
                       >
@@ -93,220 +82,198 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   )}
                 </div>
 
-                <div className="flex items-center gap-2 text-xs font-mono">
-                  <span className="text-teal-300 font-medium">
-                    LEVEL {levelInfo.level} · {levelInfo.title}
+                <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+                  <span className="text-[var(--accent-teal)] font-medium">
+                    Level {levelInfo.level} · {levelInfo.title}
                   </span>
-                  <span className="text-slate-500">·</span>
-                  <span className="text-slate-400">
-                    ID #{progress.totalXp.toString().padStart(5, '0')}
-                  </span>
+                  <span>·</span>
+                  <span className="tabular-nums">ID #{progress.totalXp.toString().padStart(5, '0')}</span>
                 </div>
               </div>
             </div>
 
-            {/* Total XP Counter */}
-            <div className="text-left md:text-right space-y-1 border-t md:border-t-0 pt-4 md:pt-0 border-white/[0.08]">
-              <span className="text-[10px] font-mono uppercase text-slate-500 block">Akumulasi Total Reputasi</span>
-              <div className="text-4xl font-display font-medium text-teal-300 tabular-nums">
-                {progress.totalXp.toLocaleString('id-ID')} <span className="text-sm font-normal text-slate-400">XP</span>
+            <div className="text-left md:text-right space-y-1">
+              <span className="text-[11px] uppercase tracking-[0.18em] text-[var(--text-muted)] block">
+                Total Reputasi
+              </span>
+              <div className="text-3xl sm:text-4xl font-display font-light text-[var(--accent-sand)] tabular-nums">
+                {progress.totalXp.toLocaleString('id-ID')}{' '}
+                <span className="text-sm font-sans text-[var(--text-muted)]">XP</span>
               </div>
-              <div className="text-xs text-slate-400 font-mono">
-                {levelInfo.level < 5 
-                  ? `Butuh ${levelInfo.nextLevelXp - progress.totalXp} XP lagi menuju Level ${levelInfo.level + 1}`
-                  : 'Peringkat Tertinggi Samudra Tercapai!'}
+              <div className="text-xs text-[var(--text-muted)]">
+                {levelInfo.level < 5
+                  ? `Butuh ${levelInfo.nextLevelXp - progress.totalXp} XP menuju Level ${levelInfo.level + 1}`
+                  : 'Peringkat Tertinggi Samudra Tercapai'}
               </div>
             </div>
-
           </div>
 
-          {/* Level Progress Bar */}
-          <div className="mt-8 space-y-2">
-            <div className="flex items-center justify-between text-xs font-mono text-slate-500">
-              <span>Progress Level {levelInfo.level}</span>
-              <span className="text-teal-400 font-medium tabular-nums">{levelInfo.progressPercent}%</span>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
+              <span>Progres Level {levelInfo.level}</span>
+              <span className="text-[var(--accent-teal)] font-medium tabular-nums">
+                {levelInfo.progressPercent}%
+              </span>
             </div>
-            <div className="w-full h-2 rounded-full bg-white/[0.06] overflow-hidden">
+            <div className="w-full h-1.5 rounded-full bg-[var(--bg-surface)] overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-teal-500 to-cyan-300 transition-all duration-500 rounded-full"
+                className="h-full bg-[#367D7B] transition-all duration-500 rounded-full"
                 style={{ width: `${levelInfo.progressPercent}%` }}
               />
             </div>
           </div>
+        </section>
 
-        </div>
-
-        {/* 4 Performance Metric Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          
-          <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/[0.08] space-y-1">
-            <div className="flex items-center justify-between text-slate-500">
-              <span className="text-[10px] font-mono uppercase">Misi Selesai</span>
-              <CheckSquare className="w-4 h-4 text-teal-400" />
-            </div>
-            <div className="text-2xl font-display font-medium text-white tabular-nums">
+        {/* Open Typographic 4-Metric Strip */}
+        <section className="grid grid-cols-2 lg:grid-cols-4 gap-8 pb-8 border-b border-[var(--border-hairline)]">
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--text-muted)]">Misi Selesai</div>
+            <div className="font-display font-light text-3xl text-[var(--text-primary)] tabular-nums mt-1">
               {progress.completedMissions.length}
             </div>
-            <div className="text-[11px] text-slate-500">Aksi Konservasi Nyata</div>
+            <div className="text-xs text-[var(--text-secondary)] mt-0.5">Aksi Konservasi Nyata</div>
           </div>
 
-          <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/[0.08] space-y-1">
-            <div className="flex items-center justify-between text-slate-500">
-              <span className="text-[10px] font-mono uppercase">Kuis Dijawab</span>
-              <HelpCircle className="w-4 h-4 text-rose-400" />
-            </div>
-            <div className="text-2xl font-display font-medium text-white tabular-nums">
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--text-muted)]">Kuis Benar</div>
+            <div className="font-display font-light text-3xl text-[var(--text-primary)] tabular-nums mt-1">
               {progress.quizTotalCorrect}
             </div>
-            <div className="text-[11px] text-slate-500">{progress.quizCompletedCount} Sesi Kuis Selesai</div>
+            <div className="text-xs text-[var(--text-secondary)] mt-0.5">
+              {progress.quizCompletedCount} Sesi Kuis Selesai
+            </div>
           </div>
 
-          <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/[0.08] space-y-1">
-            <div className="flex items-center justify-between text-slate-500">
-              <span className="text-[10px] font-mono uppercase">Highscore Game</span>
-              <Gamepad2 className="w-4 h-4 text-teal-400" />
-            </div>
-            <div className="text-2xl font-display font-medium text-white tabular-nums">
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--text-muted)]">Highscore Game</div>
+            <div className="font-display font-light text-3xl text-[var(--text-primary)] tabular-nums mt-1">
               {progress.gameHighScore}
             </div>
-            <div className="text-[11px] text-slate-500">{progress.gamesPlayed} Kali Dimainkan</div>
+            <div className="text-xs text-[var(--text-secondary)] mt-0.5">
+              {progress.gamesPlayed} Kali Dimainkan
+            </div>
           </div>
 
-          <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/[0.08] space-y-1">
-            <div className="flex items-center justify-between text-slate-500">
-              <span className="text-[10px] font-mono uppercase">Spesies Favorit</span>
-              <Heart className="w-4 h-4 text-rose-400 fill-rose-400" />
-            </div>
-            <div className="text-2xl font-display font-medium text-white tabular-nums">
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--text-muted)]">Spesies Favorit</div>
+            <div className="font-display font-light text-3xl text-[var(--text-primary)] tabular-nums mt-1">
               {progress.favoriteSpecies.length}
             </div>
-            <div className="text-[11px] text-slate-500">Biota Disimpan di Museum</div>
+            <div className="text-xs text-[var(--text-secondary)] mt-0.5">Biota Tersimpan</div>
           </div>
+        </section>
 
-        </div>
-
-        {/* ACHIEVEMENTS GRID */}
-        <div className="space-y-4">
+        {/* Unboxed Achievements Archive */}
+        <section className="space-y-6">
           <div className="space-y-1">
-            <span className="text-xs text-teal-400 font-medium tracking-wide">
-              Lencana Kehormatan & Pencapaian
+            <span className="text-[11px] uppercase tracking-[0.2em] text-[var(--accent-teal)] font-medium">
+              Lencana Kehormatan
             </span>
-            <h3 className="font-display font-medium text-2xl text-white">
-              Pencapaian Konservasi ({progress.unlockedAchievements.length} / {ACHIEVEMENTS_LIST.length} Terbuka)
-            </h3>
+            <h2 className="font-display font-light text-2xl sm:text-3xl text-[var(--text-primary)]">
+              Pencapaian Konservasi ({progress.unlockedAchievements.length} / {ACHIEVEMENTS_LIST.length})
+            </h2>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-10 gap-y-6">
             {ACHIEVEMENTS_LIST.map((ach) => {
               const isUnlocked = progress.unlockedAchievements.includes(ach.id);
 
               return (
                 <div
                   key={ach.id}
-                  className={`p-5 rounded-2xl border transition-all flex flex-col justify-between space-y-3 ${
-                    isUnlocked
-                      ? 'bg-white/[0.03] border-teal-400/40 shadow-lg'
-                      : 'bg-white/[0.01] border-white/[0.05] opacity-50 grayscale'
+                  className={`pt-5 border-t border-[var(--border-hairline)] space-y-2 transition-opacity ${
+                    isUnlocked ? '' : 'opacity-45'
                   }`}
                 >
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
-                        isUnlocked ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20' : 'bg-white/[0.03] text-slate-500'
-                      }`}>
-                        <Award className="w-4 h-4" />
-                      </div>
-                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${
-                        isUnlocked ? 'bg-emerald-500/15 text-emerald-300' : 'bg-white/[0.04] text-slate-500'
-                      }`}>
-                        {isUnlocked ? 'Terbuka' : 'Terkunci'}
-                      </span>
-                    </div>
-
-                    <h4 className="font-display font-medium text-sm text-white">
-                      {ach.name}
-                    </h4>
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      {ach.description}
-                    </p>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="inline-flex items-center gap-1.5 font-medium text-[var(--accent-teal)]">
+                      <Award className="w-3.5 h-3.5" />
+                      {isUnlocked ? 'Terbuka' : 'Terkunci'}
+                    </span>
+                    <span className="text-[11px] text-[var(--text-muted)]">
+                      {ach.conditionDescription}
+                    </span>
                   </div>
-
-                  <div className="text-[11px] text-slate-500 font-mono pt-2 border-t border-white/[0.06]">
-                    Syarat: {ach.conditionDescription}
-                  </div>
+                  <h3 className="font-display font-medium text-base text-[var(--text-primary)]">
+                    {ach.name}
+                  </h3>
+                  <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                    {ach.description}
+                  </p>
                 </div>
               );
             })}
           </div>
-        </div>
+        </section>
 
-        {/* FAVORITE SPECIES QUICK SHOWCASE */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-display font-medium text-2xl text-white">
+        {/* Favorite Species Showcase */}
+        <section className="space-y-6 pt-6 border-t border-[var(--border-hairline)]">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="font-display font-light text-2xl text-[var(--text-primary)]">
               Spesies Favorit Tersimpan ({favoriteSpeciesData.length})
-            </h3>
+            </h2>
             <button
               onClick={() => onNavigate('explorer')}
-              className="text-xs font-medium text-teal-400 hover:underline cursor-pointer"
+              className="text-xs font-medium text-[var(--accent-teal)] hover:underline cursor-pointer whitespace-nowrap"
             >
-              Buka Semua di Museum &rarr;
+              Buka Biota Samudra &rarr;
             </button>
           </div>
 
           {favoriteSpeciesData.length === 0 ? (
-            <div className="p-8 text-center rounded-2xl bg-white/[0.02] border border-white/[0.08] text-xs text-slate-500">
-              Belum ada spesies favorit yang ditandai. Kunjungi Museum Spesies Laut dan tekan ikon hati untuk menyimpan!
-            </div>
+            <p className="text-xs text-[var(--text-muted)] py-4">
+              Belum ada spesies favorit yang ditandai. Kunjungi halaman Biota Samudra dan tekan ikon hati untuk menyimpan.
+            </p>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
               {favoriteSpeciesData.map((sp) => (
-                <div
+                <button
                   key={sp.id}
                   onClick={() => onNavigate('explorer')}
-                  className="rounded-xl overflow-hidden border border-white/[0.08] bg-white/[0.02] hover:border-teal-400/50 cursor-pointer group transition-all"
+                  className="text-left group cursor-pointer space-y-2"
                 >
-                  <div className="h-32 overflow-hidden relative">
+                  <div className="aspect-[4/3] rounded-xl overflow-hidden bg-[var(--bg-surface)]">
                     <ImageWithFallback
                       src={sp.imageUrl}
                       alt={sp.commonName}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
-                    <span className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/60 backdrop-blur-sm text-[10px] font-mono text-teal-300">
-                      {sp.category}
-                    </span>
                   </div>
-                  <div className="p-3">
-                    <div className="font-medium text-xs text-white truncate">{sp.commonName}</div>
-                    <div className="text-[11px] text-slate-500 italic font-mono truncate">{sp.scientificName}</div>
+                  <div>
+                    <div className="font-medium text-xs text-[var(--text-primary)] truncate group-hover:text-[var(--accent-teal)] transition-colors">
+                      {sp.commonName}
+                    </div>
+                    <div className="text-[11px] text-[var(--text-muted)] italic truncate">
+                      {sp.scientificName}
+                    </div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}
-        </div>
+        </section>
 
-        {/* RESET PROGRESS SECTION */}
-        <div className="pt-8 border-t border-white/[0.08] flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="text-xs text-slate-500 leading-relaxed">
-            Data progres, pencapaian, dan level tersimpan di penyimpanan lokal peramban (localStorage) perangkat Anda.
-          </div>
+        {/* Subtle Reset Control */}
+        <footer className="pt-8 border-t border-[var(--border-hairline)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <p className="text-xs text-[var(--text-muted)]">
+            Progres dan pencapaian tersimpan secara lokal di peramban perangkat Anda.
+          </p>
 
           {showResetConfirm ? (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-rose-400 font-mono">Yakin reset semua progres?</span>
+            <div className="flex items-center gap-3 text-xs">
+              <span className="text-[var(--accent-coral)]">Reset semua progres?</span>
               <button
                 onClick={() => {
                   onResetProgress();
                   setShowResetConfirm(false);
                 }}
-                className="px-3 py-1.5 rounded-lg bg-rose-500 text-white text-xs font-semibold cursor-pointer"
+                className="px-3.5 py-1.5 rounded-full bg-[#D98270] text-[#061116] font-semibold cursor-pointer"
               >
                 Ya, Reset
               </button>
               <button
                 onClick={() => setShowResetConfirm(false)}
-                className="px-3 py-1.5 rounded-lg bg-white/[0.06] text-xs text-slate-300 cursor-pointer"
+                className="px-3 py-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
               >
                 Batal
               </button>
@@ -314,13 +281,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           ) : (
             <button
               onClick={() => setShowResetConfirm(true)}
-              className="px-3.5 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.1] hover:border-rose-400/50 text-xs font-medium text-slate-400 hover:text-rose-400 flex items-center gap-2 transition-colors cursor-pointer"
+              className="text-xs font-medium text-[var(--text-muted)] hover:text-[var(--accent-coral)] inline-flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              <span>Reset Progres Penjelajah</span>
+              <span>Reset Progres</span>
             </button>
           )}
-        </div>
+        </footer>
 
       </div>
     </div>

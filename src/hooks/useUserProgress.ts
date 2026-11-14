@@ -45,7 +45,7 @@ export function getLevelInfo(xp: number): {
       minXp: 2500,
       nextLevelXp: 2500,
       progressPercent: 100,
-      badgeColor: 'text-amber-400 border-amber-400/40 bg-amber-400/10',
+      badgeColor: 'text-[#C7B99E] border-[#C7B99E]/40 bg-[#C7B99E]/10',
     };
   } else if (xp >= 1200) {
     const range = 2500 - 1200;
@@ -56,7 +56,7 @@ export function getLevelInfo(xp: number): {
       minXp: 1200,
       nextLevelXp: 2500,
       progressPercent: Math.min(100, Math.round((current / range) * 100)),
-      badgeColor: 'text-[#35C6C0] border-[#35C6C0]/40 bg-[#35C6C0]/10',
+      badgeColor: 'text-[#82AAA1] border-[#82AAA1]/40 bg-[#82AAA1]/10',
     };
   } else if (xp >= 600) {
     const range = 1200 - 600;
@@ -67,7 +67,7 @@ export function getLevelInfo(xp: number): {
       minXp: 600,
       nextLevelXp: 1200,
       progressPercent: Math.min(100, Math.round((current / range) * 100)),
-      badgeColor: 'text-[#9DE3D7] border-[#9DE3D7]/40 bg-[#9DE3D7]/10',
+      badgeColor: 'text-[#82AAA1] border-[#367D7B]/40 bg-[#367D7B]/15',
     };
   } else if (xp >= 250) {
     const range = 600 - 250;
@@ -78,7 +78,7 @@ export function getLevelInfo(xp: number): {
       minXp: 250,
       nextLevelXp: 600,
       progressPercent: Math.min(100, Math.round((current / range) * 100)),
-      badgeColor: 'text-[#087F8C] border-[#087F8C]/40 bg-[#087F8C]/10',
+      badgeColor: 'text-[#EDEBE3] border-[#367D7B]/40 bg-[#102B38]/60',
     };
   } else {
     const range = 250;
@@ -89,7 +89,7 @@ export function getLevelInfo(xp: number): {
       minXp: 0,
       nextLevelXp: 250,
       progressPercent: Math.min(100, Math.round((current / range) * 100)),
-      badgeColor: 'text-slate-300 border-slate-500/30 bg-slate-800/30',
+      badgeColor: 'text-[#8FA3AC] border-[#EDEBE3]/15 bg-[#091C25]/70',
     };
   }
 }
