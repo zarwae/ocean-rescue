@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
+  FISCH_ISLANDS,
   FischBoat,
   FischIsland,
   FischRod,
@@ -12,22 +13,21 @@ import {
 } from '../utils/fischData';
 import { FischPhase } from '../utils/fischRenderer';
 import {
-  clampPlayerPosition,
+  clampPlayerWorldPosition,
   computeBobberTargetPosition,
-  DEFAULT_MOORED_BOAT_POS,
-  findNearestHarborBeacon,
+  findActiveIslandAt,
+  findNearestDisembarkPoint,
   findNearestNpc,
-  FischHarborBeacon,
   FischNpcSpawn,
-  getGroundHeightAt,
-  getIslandNpcSpawns,
-  getNeighborHarborBeacons,
-  resolveBoatPosition,
+  getAllWorldNpcSpawns,
+  getGroundHeightAtWorld,
+  getIslandDockSpawn,
+  resolveBoatWorldPosition,
   waterHeightAt,
 } from '../utils/fisch3dWorld';
 import {
   animateRobloxAngler,
-  buildIslandEnvironment,
+  buildArchipelagoEnvironment,
   createBoatModel,
   createBobberGroup,
   createCaughtFish3D,
@@ -37,7 +37,7 @@ import {
   IslandEnvironmentHandle,
   RobloxAnglerRig,
 } from '../utils/fisch3dModels';
-import { Gamepad2, MessageCircle, ArrowUp, Anchor, Ship, Maximize2, Minimize2, Compass } from 'lucide-react';
+import { Gamepad2, MessageCircle, ArrowUp, Anchor, Ship, Maximize2, Minimize2 } from 'lucide-react';
 import type { ThemeMode } from '../hooks/useTheme';
 
 export interface FischMutableEngineState {
@@ -96,12 +96,13 @@ interface Fisch3DViewportProps {
   shakeTarget: ShakeTarget | null;
   lastCatchVisual: CatchVisualTrigger | null;
   compassTargetIslandId?: string | null;
+  teleportRequest?: { islandId: string; id: number } | null;
   onStepFishing: (dt: number, emitSplash: (x: number, y: number, z: number) => void) => void;
   onBeginCastOrReel: () => void;
   onReleaseInput: () => void;
   onTriggerShake: () => void;
   onInteractNpc: (npc: FischNpcSpawn) => void;
-  onSailToOutpost: (islandId: string) => void;
+  onEnterIsland: (islandId: string) => void;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
   statusBanner: string | null;
@@ -134,12 +135,13 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
   shakeTarget,
   lastCatchVisual,
   compassTargetIslandId = null,
+  teleportRequest = null,
   onStepFishing,
   onBeginCastOrReel,
   onReleaseInput,
   onTriggerShake,
   onInteractNpc,
-  onSailToOutpost,
+  onEnterIsland,
   isFullscreen = false,
   onToggleFullscreen,
   statusBanner,
@@ -149,7 +151,6 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
 }) => {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const [nearestNpc, setNearestNpc] = useState<FischNpcSpawn | null>(null);
-  const [nearestOutpost, setNearestOutpost] = useState<FischHarborBeacon | null>(null);
   const [compassReadout, setCompassReadout] = useState<CompassReadout | null>(null);
   const [inBoat, setInBoat] = useState(false);
   const [nearBoat, setNearBoat] = useState(true);
@@ -185,7 +186,7 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
     onReleaseInput,
     onTriggerShake,
     onInteractNpc,
-    onSailToOutpost,
+    onEnterIsland,
   });
   propsRef.current = {
     theme,
@@ -201,45 +202,51 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
     onReleaseInput,
     onTriggerShake,
     onInteractNpc,
-    onSailToOutpost,
+    onEnterIsland,
   };
 
-  // Player, Boat & Camera spatial state
-  const spatialRef = useRef({
-    px: 0,
-    py: getGroundHeightAt(island.id, 0, 10.5),
-    pz: 10.5,
-    vy: 0,
-    yaw: 0, // facing +Z toward open ocean
-    isGrounded: true,
-    inBoat: false,
-    bx: DEFAULT_MOORED_BOAT_POS.x,
-    bz: DEFAULT_MOORED_BOAT_POS.z,
-    bYaw: DEFAULT_MOORED_BOAT_POS.yaw,
-    bSpeed: 0,
-    wakeTimer: 0,
-    camYaw: 0,
-    camPitch: 0.42,
-    camDist: 9.6,
-    bobberStart: new THREE.Vector3(0, 1.5, 10.5),
-    bobberTarget: new THREE.Vector3(0, 0, 19.5),
-    celebratingTimer: 0,
-    lastIslandId: island.id,
-    lastCatchId: 0,
-  });
+  // Player, Boat & Camera spatial state initialized cleanly on the current island's dock
+  const spatialRef = useRef((() => {
+    const initialSpawn = getIslandDockSpawn(island.id);
+    return {
+      px: initialSpawn.px,
+      py: initialSpawn.py,
+      pz: initialSpawn.pz,
+      vy: 0,
+      yaw: initialSpawn.yaw,
+      isGrounded: true,
+      inBoat: false,
+      bx: initialSpawn.bx,
+      bz: initialSpawn.bz,
+      bYaw: initialSpawn.bYaw,
+      bSpeed: 0,
+      wakeTimer: 0,
+      camYaw: initialSpawn.yaw,
+      camPitch: 0.42,
+      camDist: 9.6,
+      bobberStart: new THREE.Vector3(initialSpawn.px, 1.5, initialSpawn.pz),
+      bobberTarget: new THREE.Vector3(initialSpawn.px, 0, initialSpawn.pz + 9),
+      celebratingTimer: 0,
+      lastIslandId: island.id,
+      lastTeleportId: 0,
+      lastCatchId: 0,
+    };
+  })());
 
   const toggleBoatBoarding = (forceReturnDock = false) => {
     if (engineRef.current.phase !== 'idle') return;
     const sp = spatialRef.current;
     if (forceReturnDock) {
+      const dockSpawn = getIslandDockSpawn(propsRef.current.island.id);
       sp.inBoat = false;
-      sp.bx = DEFAULT_MOORED_BOAT_POS.x;
-      sp.bz = DEFAULT_MOORED_BOAT_POS.z;
-      sp.bYaw = DEFAULT_MOORED_BOAT_POS.yaw;
+      sp.bx = dockSpawn.bx;
+      sp.bz = dockSpawn.bz;
+      sp.bYaw = dockSpawn.bYaw;
       sp.bSpeed = 0;
-      sp.px = -5.2;
-      sp.pz = 14.8;
-      sp.py = getGroundHeightAt(propsRef.current.island.id, sp.px, sp.pz);
+      sp.px = dockSpawn.px;
+      sp.pz = dockSpawn.pz;
+      sp.py = dockSpawn.py;
+      sp.yaw = dockSpawn.yaw;
       sp.vy = 0;
       sp.isGrounded = true;
       setInBoat(false);
@@ -248,23 +255,26 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
 
     if (!sp.inBoat) {
       const distBoat = Math.hypot(sp.px - sp.bx, sp.pz - sp.bz);
-      if (distBoat <= 7.4) {
+      if (distBoat <= 8.5) {
         sp.inBoat = true;
         sp.bSpeed = 0;
         sp.yaw = sp.bYaw;
         setInBoat(true);
       }
     } else {
-      const distPier = Math.hypot(sp.bx, sp.bz - 14.8);
-      if (distPier <= 13.5) {
+      const landPoint = findNearestDisembarkPoint(sp.bx, sp.bz, 11.5);
+      if (landPoint) {
         sp.inBoat = false;
         sp.bSpeed = 0;
-        sp.px = THREE.MathUtils.clamp(sp.bx, -5.8, 5.8);
-        sp.pz = THREE.MathUtils.clamp(sp.bz, 13.2, 16.2);
-        sp.py = getGroundHeightAt(propsRef.current.island.id, sp.px, sp.pz);
+        sp.px = landPoint.x;
+        sp.pz = landPoint.z;
+        sp.py = landPoint.groundY;
         sp.vy = 0;
         sp.isGrounded = true;
         setInBoat(false);
+        if (landPoint.islandId !== propsRef.current.island.id) {
+          propsRef.current.onEnterIsland(landPoint.islandId);
+        }
       }
     }
   };
@@ -283,26 +293,30 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
     }
   }, [lastCatchVisual]);
 
-  // Reset avatar onto wooden pier when sailing to a new island
+  // Direct instant move to an already-loaded island dock via Map Pop-up ("Pergi Langsung")
   useEffect(() => {
-    if (spatialRef.current.lastIslandId !== island.id) {
-      spatialRef.current.lastIslandId = island.id;
-      spatialRef.current.inBoat = false;
-      spatialRef.current.bx = DEFAULT_MOORED_BOAT_POS.x;
-      spatialRef.current.bz = DEFAULT_MOORED_BOAT_POS.z;
-      spatialRef.current.bYaw = DEFAULT_MOORED_BOAT_POS.yaw;
-      spatialRef.current.bSpeed = 0;
-      spatialRef.current.px = 0;
-      spatialRef.current.pz = 10.5;
-      spatialRef.current.py = getGroundHeightAt(island.id, 0, 10.5);
-      spatialRef.current.vy = 0;
-      spatialRef.current.yaw = 0;
-      spatialRef.current.isGrounded = true;
+    if (teleportRequest && teleportRequest.id !== spatialRef.current.lastTeleportId) {
+      spatialRef.current.lastTeleportId = teleportRequest.id;
+      const targetSpawn = getIslandDockSpawn(teleportRequest.islandId);
+      const sp = spatialRef.current;
+      sp.lastIslandId = teleportRequest.islandId;
+      sp.inBoat = false;
+      sp.bx = targetSpawn.bx;
+      sp.bz = targetSpawn.bz;
+      sp.bYaw = targetSpawn.bYaw;
+      sp.bSpeed = 0;
+      sp.px = targetSpawn.px;
+      sp.pz = targetSpawn.pz;
+      sp.py = targetSpawn.py;
+      sp.vy = 0;
+      sp.yaw = targetSpawn.yaw;
+      sp.camYaw = targetSpawn.yaw;
+      sp.isGrounded = true;
       setInBoat(false);
     }
-  }, [island.id]);
+  }, [teleportRequest]);
 
-  // Keyboard Listeners (WASD/Arrows move, Space jumps or reels, F casts/reels, E shakes/talks/docks, B boards boat)
+  // Keyboard Listeners (WASD/Arrows move, Space jumps or reels, F casts/reels, E shakes/talks, B boards/disembarks boat)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) {
@@ -330,25 +344,11 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
         if (phaseNow === 'waiting') {
           e.preventDefault();
           propsRef.current.onTriggerShake();
-        } else if (phaseNow === 'idle') {
-          if (spatialRef.current.inBoat) {
-            const beacon = findNearestHarborBeacon(
-              spatialRef.current.bx,
-              spatialRef.current.bz,
-              propsRef.current.island.id,
-              17.5
-            );
-            if (beacon) {
-              e.preventDefault();
-              propsRef.current.onSailToOutpost(beacon.islandId);
-            }
-          } else {
-            const spawns = getIslandNpcSpawns(propsRef.current.island.id);
-            const near = findNearestNpc(spatialRef.current.px, spatialRef.current.pz, 3.6, spawns);
-            if (near) {
-              e.preventDefault();
-              propsRef.current.onInteractNpc(near);
-            }
+        } else if (phaseNow === 'idle' && !spatialRef.current.inBoat) {
+          const near = findNearestNpc(spatialRef.current.px, spatialRef.current.pz, 3.6, getAllWorldNpcSpawns());
+          if (near) {
+            e.preventDefault();
+            propsRef.current.onInteractNpc(near);
           }
         }
       }
@@ -428,7 +428,7 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
     roomEnv.dispose();
     pmremGenerator.dispose();
 
-    const camera = new THREE.PerspectiveCamera(56, width / height, 0.25, 380);
+    const camera = new THREE.PerspectiveCamera(56, width / height, 0.25, 420);
 
     // 3-Point Warm/Cool Lighting Rig
     const hemiLight = new THREE.HemisphereLight('#BCE8F7', '#174A57', 0.85);
@@ -440,8 +440,8 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
     sunLight.shadow.mapSize.width = 1024;
     sunLight.shadow.mapSize.height = 1024;
     sunLight.shadow.camera.near = 2;
-    sunLight.shadow.camera.far = 92;
-    const d = 32;
+    sunLight.shadow.camera.far = 96;
+    const d = 34;
     sunLight.shadow.camera.left = -d;
     sunLight.shadow.camera.right = d;
     sunLight.shadow.camera.top = d;
@@ -449,13 +449,14 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
     sunLight.shadow.bias = -0.0005;
     sunLight.shadow.normalBias = 0.02;
     scene.add(sunLight);
+    scene.add(sunLight.target);
 
     const rimLight = new THREE.DirectionalLight('#7DD3FC', 0.55);
     rimLight.position.set(-18, 14, -20);
     scene.add(rimLight);
 
-    // Animated PBR Ocean Plane (onBeforeCompile GLSL Waves matching waterHeightAt)
-    const waterGeo = new THREE.PlaneGeometry(460, 460, isSoftwareGl ? 64 : 112, isSoftwareGl ? 64 : 112);
+    // Animated PBR Ocean Plane spanning entire 11-Island Open-World Archipelago
+    const waterGeo = new THREE.PlaneGeometry(520, 520, isSoftwareGl ? 68 : 120, isSoftwareGl ? 68 : 120);
     const waterMat = new THREE.MeshStandardMaterial({
       color: '#2B8E94',
       roughness: 0.16,
@@ -497,11 +498,9 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
     waterMesh.receiveShadow = true;
     scene.add(waterMesh);
 
-    // Build initial Island & Roblox Angler Rig
+    // Build ALL 11 Archipelago Islands Live in One Continuous Open World!
     const maxAniso = renderer.capabilities.getMaxAnisotropy();
-    let activeIslandId = propsRef.current.island.id;
-    let islandHandle: IslandEnvironmentHandle = buildIslandEnvironment(
-      propsRef.current.island,
+    const islandHandle: IslandEnvironmentHandle = buildArchipelagoEnvironment(
       propsRef.current.theme === 'dark',
       maxAniso,
       isSoftwareGl
@@ -729,19 +728,11 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
       const sp = spatialRef.current;
       const eng = engineRef.current;
 
-      // 1. Rebuild island diorama if player sailed to another island
-      if (activeIslandId !== curProps.island.id) {
-        activeIslandId = curProps.island.id;
-        scene.remove(islandHandle.group);
-        islandHandle.dispose();
-        islandHandle = buildIslandEnvironment(
-          curProps.island,
-          curProps.theme === 'dark',
-          maxAniso,
-          isSoftwareGl
-        );
-        scene.add(islandHandle.group);
-      }
+      // 1. Update Sun Shadow Frustum & Ambient Rain Anchor cleanly around Player across open world
+      sunLight.position.set(sp.px + 22, 32, sp.pz + 18);
+      sunLight.target.position.set(sp.px, 0, sp.pz);
+      sunLight.target.updateMatrixWorld();
+      rainLines.position.set(sp.px, 0, sp.pz);
 
       // 2. Update 3D Rod material colors if equipped rod changed & rebuild 3D Boat if boat changed
       if (activeRodId !== curProps.rod.id) {
@@ -824,12 +815,11 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
 
           const boatSpeed = curProps.boat.speed * moveRatio;
           sp.bSpeed = THREE.MathUtils.lerp(sp.bSpeed, boatSpeed, Math.min(1, dt * 5));
-          const resolved = resolveBoatPosition(
+          const resolved = resolveBoatWorldPosition(
             sp.bx,
             sp.bz,
             sp.bx + Math.sin(sp.bYaw) * sp.bSpeed * dt,
-            sp.bz + Math.cos(sp.bYaw) * sp.bSpeed * dt,
-            curProps.island.id
+            sp.bz + Math.cos(sp.bYaw) * sp.bSpeed * dt
           );
           sp.bx = resolved.x;
           sp.bz = resolved.z;
@@ -877,8 +867,7 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
           const worldDirZ = -cosC * ny - sinC * nx;
 
           const speed = 6.2 * moveRatio;
-          const clamped = clampPlayerPosition(
-            curProps.island.id,
+          const clamped = clampPlayerWorldPosition(
             sp.px,
             sp.pz,
             sp.px + worldDirX * speed * dt,
@@ -901,7 +890,7 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
         }
         jumpQueuedRef.current = false;
 
-        const groundY = getGroundHeightAt(curProps.island.id, sp.px, sp.pz);
+        const groundY = getGroundHeightAtWorld(sp.px, sp.pz);
         if (!sp.isGrounded || sp.py > groundY + 0.02) {
           sp.vy -= 21 * dt;
           sp.py += sp.vy * dt;
@@ -1077,62 +1066,73 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
 
       if (elapsedTotal - lastNearCheck > 0.12) {
         lastNearCheck = elapsedTotal;
-        const spawns = getIslandNpcSpawns(curProps.island.id);
+
+        // 9A. Auto-detect seamless island entry without scene reload!
+        const activeIsl = findActiveIslandAt(sp.px, sp.pz, curProps.island.id);
+        if (activeIsl.id !== curProps.island.id) {
+          curProps.onEnterIsland(activeIsl.id);
+        }
+
+        // 9B. Distance-cull NPC nameplates & highlight nearest interactive NPC
+        const spawns = getAllWorldNpcSpawns();
         const near = sp.inBoat ? null : findNearestNpc(sp.px, sp.pz, 3.6, spawns);
         for (const actor of islandHandle.npcActors) {
           const isHot = near?.id === actor.spawn.id;
           actor.ringMat.opacity = isHot ? 0.85 : 0.28;
           actor.ringMesh.scale.setScalar(isHot ? 1.18 : 1.0);
+          const dSq = (actor.spawn.x - sp.px) ** 2 + (actor.spawn.z - sp.pz) ** 2;
+          actor.nameplateSprite.visible = dSq <= 44 * 44;
         }
         if ((near?.id ?? null) !== lastNearestId) {
           lastNearestId = near?.id ?? null;
           setNearestNpc(near);
         }
 
-        const isNearBoat = !sp.inBoat && Math.hypot(sp.px - sp.bx, sp.pz - sp.bz) <= 7.4;
+        const isNearBoat = !sp.inBoat && Math.hypot(sp.px - sp.bx, sp.pz - sp.bz) <= 8.5;
         setNearBoat((prev) => (prev !== isNearBoat ? isNearBoat : prev));
 
-        const isNearDock = sp.inBoat && Math.hypot(sp.bx, sp.bz - 14.8) <= 13.5;
-        setNearDockForDisembark((prev) => (prev !== isNearDock ? isNearDock : prev));
+        const canDisembarkAnywhere = sp.inBoat ? Boolean(findNearestDisembarkPoint(sp.bx, sp.bz, 11.5)) : false;
+        setNearDockForDisembark((prev) => (prev !== canDisembarkAnywhere ? canDisembarkAnywhere : prev));
 
-        const outpost = sp.inBoat
-          ? findNearestHarborBeacon(sp.bx, sp.bz, curProps.island.id, 17.5)
-          : null;
-        setNearestOutpost((prev) => ((prev?.islandId ?? null) !== (outpost?.islandId ?? null) ? outpost : prev));
-
-        // Update live Sailing Compass Readout when inBoat OR a compass target island is pinned
+        // 9C. Open-World Live Sailing Compass Readout
         const pinnedId = curProps.compassTargetIslandId;
         if (sp.inBoat || pinnedId) {
-          const neighbors = getNeighborHarborBeacons(curProps.island.id);
-          let targetBeacon = pinnedId ? neighbors.find((b) => b.islandId === pinnedId) ?? null : null;
-          const isPinnedTarget = Boolean(targetBeacon);
-          if (!targetBeacon && sp.inBoat && neighbors.length > 0) {
+          let targetIsland = pinnedId
+            ? FISCH_ISLANDS.find((isl) => isl.id === pinnedId) ?? null
+            : null;
+          const isPinnedTarget = Boolean(targetIsland && targetIsland.id !== curProps.island.id);
+          if (!isPinnedTarget) targetIsland = null;
+
+          if (!targetIsland && sp.inBoat) {
             let bestDist = Infinity;
-            for (const b of neighbors) {
-              const d = Math.hypot(b.x - sp.bx, b.z - sp.bz);
+            const refX = sp.bx;
+            const refZ = sp.bz;
+            for (const isl of FISCH_ISLANDS) {
+              if (isl.id === curProps.island.id) continue;
+              const d = Math.hypot(isl.worldCoords.x - refX, isl.worldCoords.z - refZ);
               if (d < bestDist) {
                 bestDist = d;
-                targetBeacon = b;
+                targetIsland = isl;
               }
             }
           }
-          if (targetBeacon) {
+
+          if (targetIsland) {
             const refX = sp.inBoat ? sp.bx : sp.px;
             const refZ = sp.inBoat ? sp.bz : sp.pz;
-            const dx = targetBeacon.x - refX;
-            const dz = targetBeacon.z - refZ;
+            const dx = targetIsland.worldCoords.x - refX;
+            const dz = targetIsland.worldCoords.z - refZ;
             const distM = Math.round(Math.hypot(dx, dz));
-            // Project target direction into camera screen space (Right vs Forward)
             const cosC = Math.cos(sp.camYaw);
             const sinC = Math.sin(sp.camYaw);
             const dotRight = dx * cosC - dz * sinC;
             const dotForward = -dx * sinC - dz * cosC;
             const arrowAngleDeg = (Math.atan2(dotRight, dotForward) * 180) / Math.PI;
             setCompassReadout({
-              targetName: targetBeacon.name,
+              targetName: targetIsland.name,
               distanceM: distM,
               arrowAngleDeg,
-              accentHex: targetBeacon.accentHex,
+              accentHex: targetIsland.accentHex,
               isPinnedTarget,
             });
           } else {
@@ -1512,24 +1512,10 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
         </div>
       )}
 
-      {/* Bottom-Right Roblox Action Cluster (Talk/Dock/Board Boat + Jump + Cast/Reel) */}
+      {/* Bottom-Right Roblox Action Cluster (Talk/Board Boat + Jump + Cast/Reel) */}
       {showVirtualPad && (
         <div className="absolute bottom-4 right-4 z-20 flex flex-col items-end gap-2">
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {nearestOutpost && inBoat && phase === 'idle' && (
-              <button
-                type="button"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSailToOutpost(nearestOutpost.islandId);
-                }}
-                className="px-3.5 py-2 rounded-xl bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1] border border-[#5EC48B] text-xs font-bold flex items-center gap-1.5 shadow-xl cursor-pointer"
-              >
-                <Compass className="w-3.5 h-3.5" />
-                <span>Labuhkan: {nearestOutpost.name} [E]</span>
-              </button>
-            )}
 
             {nearestNpc && !inBoat && phase === 'idle' && (
               <button

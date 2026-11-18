@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {
   AppraiserTableStyle,
+  FISCH_ISLANDS,
   FischBoat,
   FischIsland,
   FischRod,
@@ -15,9 +16,10 @@ import {
   createRobloxFaceTexture,
   createWoodPlankTexture,
   FischNpcSpawn,
+  getAllWorldNpcSpawns,
   getGroundHeightAt,
-  getIslandNpcSpawns,
-  getNeighborHarborBeacons,
+  getGroundHeightAtWorld,
+  getIslandLayout,
 } from './fisch3dWorld';
 
 export interface RobloxAnglerRig {
@@ -44,6 +46,7 @@ export interface NpcActorHandle {
   hitboxMesh: THREE.Mesh;
   ringMesh: THREE.Mesh;
   ringMat: THREE.MeshBasicMaterial;
+  nameplateSprite: THREE.Sprite;
   crystalMesh?: THREE.Mesh;
   baseY: number;
 }
@@ -68,6 +71,8 @@ export interface IslandEnvironmentHandle {
   update: (timeSec: number, dt: number, isNight: boolean, auroraActive: boolean) => void;
   dispose: () => void;
 }
+
+export type ArchipelagoEnvironmentHandle = IslandEnvironmentHandle;
 
 export function disposeObject3DTree(root: THREE.Object3D): void {
   const geometries = new Set<THREE.BufferGeometry>();
@@ -153,7 +158,6 @@ export function createRobloxAnglerRig(initialRod: FischRod): RobloxAnglerRig {
     metalness: 0.15,
   });
 
-  // Left & Right Legs (bottom-center pivot at hip y = 0.76, sole at y = 0)
   const makeLeg = (xOffset: number) => {
     const legPivot = new THREE.Group();
     legPivot.position.set(xOffset, 0.76, 0);
@@ -170,27 +174,23 @@ export function createRobloxAnglerRig(initialRod: FischRod): RobloxAnglerRig {
   const rightLegPivot = makeLeg(0.2);
   bodyPivot.add(leftLegPivot, rightLegPivot);
 
-  // Torso Group (1.12 center, 0.74 tall)
   const torsoGroup = new THREE.Group();
   torsoGroup.position.set(0, 1.14, 0);
   const torso = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.76, 0.42), shirtMat);
   torso.castShadow = true;
   torsoGroup.add(torso);
 
-  // Maritime life-vest harness + brass buckle
   const vest = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.5, 0.46), vestMat);
   vest.position.y = 0.06;
   vest.castShadow = true;
   const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, 0.49), buckleMat);
   buckle.position.set(0, 0.02, 0.01);
-  // Tackle backpack
   const backpack = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.52, 0.22), hatMat);
   backpack.position.set(0, 0.04, -0.32);
   backpack.castShadow = true;
   torsoGroup.add(vest, buckle, backpack);
   bodyPivot.add(torsoGroup);
 
-  // Head + Bucket Hat
   const headGroup = new THREE.Group();
   headGroup.position.set(0, 1.82, 0);
   const headMats = [skinMat, skinMat, skinMat, skinMat, headFrontMat, skinMat];
@@ -208,7 +208,6 @@ export function createRobloxAnglerRig(initialRod: FischRod): RobloxAnglerRig {
   headGroup.add(headMesh, hatBrim, hatCrown, hatBand);
   bodyPivot.add(headGroup);
 
-  // Left & Right Arms (pivoted at shoulder)
   const makeArm = (xOffset: number) => {
     const armPivot = new THREE.Group();
     armPivot.position.set(xOffset, 1.44, 0);
@@ -225,7 +224,6 @@ export function createRobloxAnglerRig(initialRod: FischRod): RobloxAnglerRig {
   const rightArmPivot = makeArm(0.56);
   bodyPivot.add(leftArmPivot, rightArmPivot);
 
-  // 3D Fishing Rod attached to right hand
   const rodGroup = new THREE.Group();
   rodGroup.position.set(0, -0.58, 0.14);
   rodGroup.rotation.x = Math.PI * 0.26;
@@ -292,10 +290,8 @@ export function createRobloxAnglerRig(initialRod: FischRod): RobloxAnglerRig {
   const rodTipAnchor = new THREE.Object3D();
   rodTipAnchor.position.set(0, 0, 0.56);
   parentNode.add(rodTipAnchor);
-
   rodGroup.add(handleMesh, reelBody);
 
-  // Soft contact shadow directly under player
   const shadowTex = createRadialContactShadowTexture();
   const contactShadow = new THREE.Mesh(
     new THREE.PlaneGeometry(1.45, 1.45),
@@ -347,7 +343,6 @@ export function animateRobloxAngler(
   const isWalking = !isSeated && moveSpeedRatio > 0.06 && isGrounded;
   const walkSwing = isWalking ? Math.sin(timeSec * 10.5) * 0.65 * moveSpeedRatio : 0;
 
-  // Legs
   if (isSeated) {
     rig.leftLegPivot.rotation.x = -1.32;
     rig.rightLegPivot.rotation.x = -1.32;
@@ -359,18 +354,15 @@ export function animateRobloxAngler(
     rig.rightLegPivot.rotation.x = -walkSwing;
   }
 
-  // Body subtle bob
   rig.bodyPivot.position.y = isSeated
     ? -0.35
     : isWalking
     ? Math.abs(Math.sin(timeSec * 10.5)) * 0.07
     : Math.sin(timeSec * 2.2) * 0.02;
 
-  // Contact shadow fade on jump / when seated inside boat
   const shadowMat = rig.contactShadow.material as THREE.MeshBasicMaterial;
   shadowMat.opacity = isSeated ? 0 : isGrounded ? 0.48 : 0.2;
 
-  // Arms & Rod flex based on fishing state
   let targetRightArmX = -walkSwing * 0.85;
   let targetLeftArmX = walkSwing * 0.85;
   let targetLeftArmZ = 0.06;
@@ -423,23 +415,41 @@ export function animateRobloxAngler(
 }
 
 // ============================================================
-// 2. Interactive 3D NPCs, Island Headgear, Custom Stalls & Keeper's Altar
+// 2. Interactive 3D NPCs (Shared Textures/Geos across Archipelago)
 // ============================================================
+
+interface SharedNpcResources {
+  skinMat: THREE.MeshStandardMaterial;
+  pantsMat: THREE.MeshStandardMaterial;
+  timberMat: THREE.MeshStandardMaterial;
+  whiteMat: THREE.MeshStandardMaterial;
+  bronzeMat: THREE.MeshStandardMaterial;
+  darkLeatherMat: THREE.MeshStandardMaterial;
+  khakiMat: THREE.MeshStandardMaterial;
+  stoneMat: THREE.MeshStandardMaterial;
+  npcHeadFrontMat: THREE.MeshStandardMaterial;
+  merlinHeadFrontMat: THREE.MeshStandardMaterial;
+  legGeo: THREE.BoxGeometry;
+  torsoGeo: THREE.BoxGeometry;
+  sashGeo: THREE.BoxGeometry;
+  armGeo: THREE.BoxGeometry;
+  headGeo: THREE.BoxGeometry;
+  hitboxGeo: THREE.BoxGeometry;
+  ringGeo: THREE.RingGeometry;
+}
 
 function attachNpcHat(
   group: THREE.Group,
   hatStyle: NpcHatStyle | undefined,
   shirtMat: THREE.MeshStandardMaterial,
-  accentMat: THREE.MeshStandardMaterial
+  accentMat: THREE.MeshStandardMaterial,
+  res: SharedNpcResources
 ): void {
-  const timberMat = new THREE.MeshStandardMaterial({ color: '#5C3A21', roughness: 0.85 });
-  const whiteMat = new THREE.MeshStandardMaterial({ color: '#F8FAFC', roughness: 0.75 });
-
   switch (hatStyle) {
     case 'captain_cap': {
-      const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.33, 0.2, 12), shirtMat);
+      const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.33, 0.2, 10), shirtMat);
       crown.position.set(0, 2.16, 0);
-      const visor = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.06, 0.28), timberMat);
+      const visor = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.06, 0.28), res.timberMat);
       visor.position.set(0, 2.08, 0.28);
       const badge = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.1, 0.06), accentMat);
       badge.position.set(0, 2.18, 0.34);
@@ -447,11 +457,11 @@ function attachNpcHat(
       break;
     }
     case 'straw': {
-      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.6, 0.06, 16), accentMat);
+      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.6, 0.06, 12), accentMat);
       brim.position.set(0, 2.07, 0);
-      const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.34, 0.22, 14), accentMat);
+      const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.34, 0.22, 12), accentMat);
       crown.position.set(0, 2.2, 0);
-      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.06, 14), shirtMat);
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.06, 12), shirtMat);
       band.position.set(0, 2.12, 0);
       group.add(brim, crown, band);
       break;
@@ -466,9 +476,9 @@ function attachNpcHat(
       break;
     }
     case 'mushroom_cap': {
-      const cap = new THREE.Mesh(new THREE.ConeGeometry(0.58, 0.36, 12), accentMat);
+      const cap = new THREE.Mesh(new THREE.ConeGeometry(0.58, 0.36, 10), accentMat);
       cap.position.set(0, 2.22, 0);
-      const spotL = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 8), whiteMat);
+      const spotL = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 6), res.whiteMat);
       spotL.position.set(-0.22, 2.24, 0.18);
       const spotR = spotL.clone();
       spotR.position.set(0.2, 2.26, 0.16);
@@ -486,13 +496,13 @@ function attachNpcHat(
     case 'fur_hood': {
       const hood = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.64, 0.62), shirtMat);
       hood.position.set(0, 1.84, -0.04);
-      const furTrim = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.09, 8, 14), whiteMat);
+      const furTrim = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.09, 6, 12), res.whiteMat);
       furTrim.position.set(0, 1.84, 0.24);
       group.add(hood, furTrim);
       break;
     }
     case 'sun_turban': {
-      const wrap = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.14, 10, 16), accentMat);
+      const wrap = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.14, 8, 12), accentMat);
       wrap.rotation.x = Math.PI / 2;
       wrap.position.set(0, 2.12, 0);
       const jewel = new THREE.Mesh(new THREE.OctahedronGeometry(0.1, 0), shirtMat);
@@ -501,27 +511,25 @@ function attachNpcHat(
       break;
     }
     case 'laurel': {
-      const wreath = new THREE.Mesh(new THREE.TorusGeometry(0.33, 0.055, 8, 16), accentMat);
+      const wreath = new THREE.Mesh(new THREE.TorusGeometry(0.33, 0.055, 6, 12), accentMat);
       wreath.rotation.x = Math.PI / 2 - 0.15;
       wreath.position.set(0, 2.08, 0);
       group.add(wreath);
       break;
     }
     case 'diving_helm': {
-      const bronzeMat = new THREE.MeshStandardMaterial({ color: '#B48A3E', roughness: 0.28, metalness: 0.85 });
-      const helm = new THREE.Mesh(new THREE.SphereGeometry(0.42, 12, 10), bronzeMat);
+      const helm = new THREE.Mesh(new THREE.SphereGeometry(0.42, 10, 8), res.bronzeMat);
       helm.position.set(0, 1.84, 0);
-      const porthole = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.12, 12), accentMat);
+      const porthole = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.12, 10), accentMat);
       porthole.rotation.x = Math.PI / 2;
       porthole.position.set(0, 1.84, 0.36);
       group.add(helm, porthole);
       break;
     }
     case 'tricorn': {
-      const darkLeather = new THREE.MeshStandardMaterial({ color: '#291D18', roughness: 0.78 });
-      const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.34, 0.22, 8), darkLeather);
+      const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.34, 0.22, 8), res.darkLeatherMat);
       crown.position.set(0, 2.14, 0);
-      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.06, 3), darkLeather);
+      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.06, 3), res.darkLeatherMat);
       brim.position.set(0, 2.06, 0);
       const trim = new THREE.Mesh(new THREE.CylinderGeometry(0.64, 0.64, 0.03, 3), accentMat);
       trim.position.set(0, 2.09, 0);
@@ -529,10 +537,9 @@ function attachNpcHat(
       break;
     }
     case 'pith_helmet': {
-      const khaki = new THREE.MeshStandardMaterial({ color: '#D6C7A2', roughness: 0.78 });
-      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.54, 0.06, 14), khaki);
+      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.54, 0.06, 12), res.khakiMat);
       brim.position.set(0, 2.08, 0);
-      const dome = new THREE.Mesh(new THREE.SphereGeometry(0.34, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), khaki);
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(0.34, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.5), res.khakiMat);
       dome.position.set(0, 2.08, 0);
       group.add(brim, dome);
       break;
@@ -546,7 +553,7 @@ function attachNpcHat(
       break;
     }
     default: {
-      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.4, 0.16, 12), accentMat);
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.4, 0.16, 10), accentMat);
       cap.position.set(0, 2.1, 0);
       group.add(cap);
     }
@@ -597,44 +604,37 @@ function buildMerchantStall(
     roughness: 0.65,
   });
 
-  // Counter Base
-  const counter = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.92, 0.95), baseMat);
+  const counter = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.92, 0.9), baseMat);
   counter.position.set(0, 0.46, 0);
   counter.castShadow = true;
   counter.receiveShadow = true;
   stall.add(counter);
 
-  // Corner Support Posts
-  [-0.98, 0.98].forEach((px) => {
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 2.45, 8), baseMat);
-    post.position.set(px, 1.22, -0.32);
-    post.castShadow = true;
+  [-0.95, 0.95].forEach((px) => {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 2.4, 7), baseMat);
+    post.position.set(px, 1.2, -0.3);
     stall.add(post);
   });
 
-  // Biome-specific Roof / Canopy
   if (style === 'ice_igloo') {
-    const dome = new THREE.Mesh(new THREE.SphereGeometry(1.3, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), roofMat);
-    dome.position.set(0, 2.25, -0.15);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(1.25, 10, 7, 0, Math.PI * 2, 0, Math.PI * 0.5), roofMat);
+    dome.position.set(0, 2.2, -0.15);
     stall.add(dome);
   } else if (style === 'sun_gazebo' || style === 'amber_pavilion') {
-    const roof = new THREE.Mesh(new THREE.ConeGeometry(1.65, 0.85, 6), roofMat);
-    roof.position.set(0, 2.7, -0.1);
-    roof.castShadow = true;
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(1.55, 0.82, 6), roofMat);
+    roof.position.set(0, 2.65, -0.1);
     stall.add(roof);
   } else {
-    const awning = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.16, 1.45), roofMat);
-    awning.position.set(0, 2.42, -0.05);
+    const awning = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.16, 1.4), roofMat);
+    awning.position.set(0, 2.38, -0.05);
     awning.rotation.x = 0.16;
-    awning.castShadow = true;
     stall.add(awning);
   }
 
-  // Hanging Trade Emblem & Counter Prop
-  const signGem = new THREE.Mesh(new THREE.OctahedronGeometry(0.22, 0), accentMat);
-  signGem.position.set(0, 2.08, 0.52);
-  const displayCrate = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.42, 0.5), accentMat);
-  displayCrate.position.set(-0.6, 1.13, 0.08);
+  const signGem = new THREE.Mesh(new THREE.OctahedronGeometry(0.2, 0), accentMat);
+  signGem.position.set(0, 2.04, 0.5);
+  const displayCrate = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 0.46), accentMat);
+  displayCrate.position.set(-0.55, 1.12, 0.06);
   stall.add(signGem, displayCrate);
 
   return stall;
@@ -658,91 +658,77 @@ function buildAppraiserTable(
     metalness: style === 'brass_scale' || style === 'solar_astrolabe' ? 0.45 : 0.12,
   });
 
-  const desk = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.62, 0.96, 10), baseMat);
-  desk.position.set(0, 0.48, 0);
-  desk.castShadow = true;
+  const desk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 0.94, 8), baseMat);
+  desk.position.set(0, 0.47, 0);
   desk.receiveShadow = true;
   table.add(desk);
 
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.52, 0.05, 8, 18), accentMat);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.05, 6, 14), accentMat);
   rim.rotation.x = Math.PI / 2;
-  rim.position.set(0, 0.97, 0);
+  rim.position.set(0, 0.95, 0);
   table.add(rim);
 
-  let crystalGeo: THREE.BufferGeometry = new THREE.IcosahedronGeometry(0.24, 0);
+  let crystalGeo: THREE.BufferGeometry = new THREE.IcosahedronGeometry(0.22, 0);
   if (style === 'brass_scale' || style === 'solar_astrolabe' || style === 'chest_compass') {
-    crystalGeo = new THREE.TorusGeometry(0.24, 0.05, 8, 16);
+    crystalGeo = new THREE.TorusGeometry(0.22, 0.05, 6, 12);
   } else if (style === 'frost_prism' || style === 'rune_lectern') {
-    crystalGeo = new THREE.OctahedronGeometry(0.26, 0);
+    crystalGeo = new THREE.OctahedronGeometry(0.24, 0);
   } else if (style === 'abyssal_orb' || style === 'pearl_basin') {
-    crystalGeo = new THREE.SphereGeometry(0.24, 12, 10);
+    crystalGeo = new THREE.SphereGeometry(0.22, 10, 8);
   } else if (style === 'magma_anvil' || style === 'fossil_desk') {
-    crystalGeo = new THREE.BoxGeometry(0.34, 0.24, 0.34);
+    crystalGeo = new THREE.BoxGeometry(0.32, 0.22, 0.32);
   }
 
   const crystal = new THREE.Mesh(crystalGeo, accentMat);
-  crystal.position.set(0, 1.32, 0);
-  crystal.castShadow = true;
+  crystal.position.set(0, 1.3, 0);
   table.add(crystal);
 
   return { table, crystal };
 }
 
-export function createNpcActor(
+function createNpcActorShared(
   spawn: FischNpcSpawn,
-  islandId: string,
-  isNight: boolean
+  isNight: boolean,
+  res: SharedNpcResources
 ): NpcActorHandle {
   const group = new THREE.Group();
-  const baseY = getGroundHeightAt(islandId, spawn.x, spawn.z);
+  const baseY = getGroundHeightAtWorld(spawn.x, spawn.z);
   group.position.set(spawn.x, baseY, spawn.z);
   group.rotation.y = spawn.yaw;
 
   let crystalMesh: THREE.Mesh | undefined;
 
   if (spawn.role === 'altar') {
-    // Keeper's Altar Monument (Stone pedestal + rune steps + floating purple crystal)
-    const stoneMat = new THREE.MeshStandardMaterial({
-      color: '#3F4A59',
-      roughness: 0.86,
-      metalness: 0.12,
-    });
     const runeMat = new THREE.MeshStandardMaterial({
       color: '#7B3FE4',
       emissive: '#7B3FE4',
-      emissiveIntensity: isNight ? 1.45 : 0.4,
+      emissiveIntensity: isNight ? 1.45 : 0.45,
       roughness: 0.28,
       metalness: 0.45,
     });
-    const baseStep = new THREE.Mesh(new THREE.CylinderGeometry(1.9, 2.2, 0.38, 8), stoneMat);
-    baseStep.position.y = 0.19;
+    const baseStep = new THREE.Mesh(new THREE.CylinderGeometry(1.75, 2.05, 0.36, 8), res.stoneMat);
+    baseStep.position.y = 0.18;
     baseStep.receiveShadow = true;
-    baseStep.castShadow = true;
 
-    const plinth = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.25, 1.45, 8), stoneMat);
-    plinth.position.y = 1.1;
+    const plinth = new THREE.Mesh(new THREE.CylinderGeometry(0.92, 1.15, 1.38, 8), res.stoneMat);
+    plinth.position.y = 1.05;
     plinth.castShadow = true;
 
-    const runeRing = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.07, 8, 24), runeMat);
+    const runeRing = new THREE.Mesh(new THREE.TorusGeometry(1.08, 0.065, 6, 18), runeMat);
     runeRing.rotation.x = Math.PI / 2;
-    runeRing.position.y = 1.88;
+    runeRing.position.y = 1.8;
 
-    crystalMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.5, 0), runeMat);
-    crystalMesh.position.y = 2.65;
+    crystalMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.48, 0), runeMat);
+    crystalMesh.position.y = 2.55;
     crystalMesh.castShadow = true;
 
     group.add(baseStep, plinth, runeRing, crystalMesh);
   } else {
-    // Stylized Roblox NPC Character + Island-Specific Headwear & Custom Stall/Workstation
-    const skinMat = new THREE.MeshStandardMaterial({ color: '#FAD7A0', roughness: 0.62 });
-    const faceTex = createRobloxFaceTexture(spawn.role === 'merlin' ? 'merlin' : 'npc');
-    const headFrontMat = new THREE.MeshStandardMaterial({ map: faceTex, roughness: 0.58 });
     const shirtMat = new THREE.MeshStandardMaterial({
       color: spawn.shirtHex,
       roughness: 0.72,
       metalness: 0.08,
     });
-    const pantsMat = new THREE.MeshStandardMaterial({ color: '#243447', roughness: 0.8 });
     const accentMat = new THREE.MeshStandardMaterial({
       color: spawn.accentHex,
       emissive: spawn.role === 'merlin' || spawn.role === 'appraiser' ? spawn.accentHex : '#000000',
@@ -751,34 +737,33 @@ export function createNpcActor(
       metalness: 0.35,
     });
 
-    const legL = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.72, 0.34), pantsMat);
+    const legL = new THREE.Mesh(res.legGeo, res.pantsMat);
     legL.position.set(-0.18, 0.36, 0);
     legL.castShadow = true;
-    const legR = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.72, 0.34), pantsMat);
+    const legR = new THREE.Mesh(res.legGeo, res.pantsMat);
     legR.position.set(0.18, 0.36, 0);
     legR.castShadow = true;
 
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.74, 0.4), shirtMat);
+    const torso = new THREE.Mesh(res.torsoGeo, shirtMat);
     torso.position.set(0, 1.1, 0);
     torso.castShadow = true;
 
-    const sash = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.22, 0.43), accentMat);
+    const sash = new THREE.Mesh(res.sashGeo, accentMat);
     sash.position.set(0, 0.96, 0);
 
-    const armL = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.68, 0.28), shirtMat);
+    const armL = new THREE.Mesh(res.armGeo, shirtMat);
     armL.position.set(-0.52, 1.1, 0);
-    armL.castShadow = true;
-    const armR = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.68, 0.28), shirtMat);
+    const armR = new THREE.Mesh(res.armGeo, shirtMat);
     armR.position.set(0.52, 1.1, 0);
-    armR.castShadow = true;
 
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.56, 0.56), [
-      skinMat,
-      skinMat,
-      skinMat,
-      skinMat,
-      headFrontMat,
-      skinMat,
+    const headFront = spawn.role === 'merlin' ? res.merlinHeadFrontMat : res.npcHeadFrontMat;
+    const head = new THREE.Mesh(res.headGeo, [
+      res.skinMat,
+      res.skinMat,
+      res.skinMat,
+      res.skinMat,
+      headFront,
+      res.skinMat,
     ]);
     head.position.set(0, 1.78, 0);
     head.castShadow = true;
@@ -786,57 +771,48 @@ export function createNpcActor(
     group.add(legL, legR, torso, sash, armL, armR, head);
 
     if (spawn.role === 'merlin') {
-      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.54, 0.54, 0.06, 14), shirtMat);
+      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.52, 0.06, 12), shirtMat);
       brim.position.set(0, 2.07, 0);
-      const cone = new THREE.Mesh(new THREE.ConeGeometry(0.36, 0.68, 12), shirtMat);
-      cone.position.set(0, 2.42, 0);
-      const staff = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.04, 0.04, 1.9, 8),
-        new THREE.MeshStandardMaterial({ color: '#5C3A21', roughness: 0.8 })
-      );
-      staff.position.set(0.68, 0.95, 0.2);
-      crystalMesh = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 12), accentMat);
-      crystalMesh.position.set(0.68, 1.96, 0.2);
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.66, 10), shirtMat);
+      cone.position.set(0, 2.4, 0);
+      const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.85, 6), res.timberMat);
+      staff.position.set(0.66, 0.92, 0.2);
+      crystalMesh = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 8), accentMat);
+      crystalMesh.position.set(0.66, 1.94, 0.2);
       group.add(brim, cone, staff, crystalMesh);
     } else if (spawn.role === 'merchant') {
-      attachNpcHat(group, spawn.hatStyle, shirtMat, accentMat);
+      attachNpcHat(group, spawn.hatStyle, shirtMat, accentMat, res);
       const stall = buildMerchantStall(spawn.stallStyle, accentMat);
-      stall.position.set(-1.75, 0, -0.2);
+      stall.position.set(-1.65, 0, -0.2);
       group.add(stall);
     } else if (spawn.role === 'appraiser') {
-      attachNpcHat(group, spawn.hatStyle, shirtMat, accentMat);
+      attachNpcHat(group, spawn.hatStyle, shirtMat, accentMat, res);
       const { table, crystal } = buildAppraiserTable(spawn.tableStyle, accentMat);
-      table.position.set(1.2, 0, 0.35);
+      table.position.set(1.15, 0, 0.35);
       crystalMesh = crystal;
       group.add(table);
     } else {
-      attachNpcHat(group, spawn.hatStyle, shirtMat, accentMat);
+      attachNpcHat(group, spawn.hatStyle, shirtMat, accentMat, res);
     }
   }
 
-  // Nameplate Sprite
-  const sprite = createNameplateSprite(spawn.name, spawn.subtitle, spawn.accentHex);
-  sprite.position.set(0, spawn.role === 'altar' ? 3.7 : 2.95, 0);
-  group.add(sprite);
+  const nameplateSprite = createNameplateSprite(spawn.name, spawn.subtitle, spawn.accentHex);
+  nameplateSprite.position.set(0, spawn.role === 'altar' ? 3.55 : 2.95, 0);
+  group.add(nameplateSprite);
 
-  // Subtle ground ring highlight
   const ringMat = new THREE.MeshBasicMaterial({
     color: spawn.accentHex,
     transparent: true,
-    opacity: 0.35,
+    opacity: 0.3,
     side: THREE.DoubleSide,
     depthWrite: false,
   });
-  const ringMesh = new THREE.Mesh(new THREE.RingGeometry(0.95, 1.22, 24), ringMat);
+  const ringMesh = new THREE.Mesh(res.ringGeo, ringMat);
   ringMesh.rotation.x = -Math.PI / 2;
   ringMesh.position.y = 0.04;
   group.add(ringMesh);
 
-  // Dedicated Layer 1 Simplified Hitbox for fast Raycasting
-  const hitboxMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(2.0, 3.2, 2.0),
-    new THREE.MeshBasicMaterial({ visible: false })
-  );
+  const hitboxMesh = new THREE.Mesh(res.hitboxGeo, new THREE.MeshBasicMaterial({ visible: false }));
   hitboxMesh.position.y = 1.45;
   hitboxMesh.layers.set(1);
   hitboxMesh.userData = { npcId: spawn.id, targetTab: spawn.targetTab, npcName: spawn.name };
@@ -848,13 +824,14 @@ export function createNpcActor(
     hitboxMesh,
     ringMesh,
     ringMat,
+    nameplateSprite,
     crystalMesh,
     baseY,
   };
 }
 
 // ============================================================
-// 3. Bobber & Caught Fish 3D Models
+// 3. Bobber, Caught Fish & 4 Drivable Boats
 // ============================================================
 
 export function createBobberGroup(): THREE.Group {
@@ -918,10 +895,6 @@ export function createCaughtFish3D(
   return g;
 }
 
-// ============================================================
-// 3B. 4 Drivable Roblox-Style 3D Boats (Rowboat -> Galleon)
-// ============================================================
-
 export function createBoatModel(boat: FischBoat): FischBoat3DHandle {
   const root = new THREE.Group();
   const hullGroup = new THREE.Group();
@@ -955,14 +928,12 @@ export function createBoatModel(boat: FischBoat): FischBoat3DHandle {
   const length = isGalleon ? 5.6 : isTrawler ? 4.8 : isSpeedboat ? 4.1 : 3.5;
   const width = isGalleon ? 2.25 : isTrawler ? 2.0 : isSpeedboat ? 1.65 : 1.5;
 
-  // Main deck hull
   const baseHull = new THREE.Mesh(new THREE.BoxGeometry(width, 0.56, length * 0.76), hullMat);
   baseHull.position.y = 0.24;
   baseHull.castShadow = true;
   baseHull.receiveShadow = true;
   hullGroup.add(baseHull);
 
-  // Pointed bow wedge (+Z forward)
   const bow = new THREE.Mesh(new THREE.ConeGeometry(width * 0.52, length * 0.34, 4), hullMat);
   bow.rotation.x = Math.PI / 2;
   bow.rotation.y = Math.PI / 4;
@@ -971,7 +942,6 @@ export function createBoatModel(boat: FischBoat): FischBoat3DHandle {
   bow.castShadow = true;
   hullGroup.add(bow);
 
-  // Gunwale side rails & Deck inlay
   const railL = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.28, length * 0.76), accentMat);
   railL.position.set(-width * 0.46, 0.62, 0);
   const railR = railL.clone();
@@ -980,12 +950,10 @@ export function createBoatModel(boat: FischBoat): FischBoat3DHandle {
   deck.position.set(0, 0.54, 0);
   hullGroup.add(railL, railR, deck);
 
-  // Bow beacon lantern
   const bowLantern = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.22, 0.18), lanternGlowMat);
   bowLantern.position.set(0, 0.78, length * 0.45);
   hullGroup.add(bowLantern);
 
-  // Boat-class superstructures
   if (isSpeedboat) {
     const windshield = new THREE.Mesh(
       new THREE.BoxGeometry(width * 0.8, 0.38, 0.08),
@@ -1026,7 +994,6 @@ export function createBoatModel(boat: FischBoat): FischBoat3DHandle {
     crowNest.position.set(0, 4.3, 0.3);
     hullGroup.add(sternDeck, mast, sail, crowNest);
   } else {
-    // Starter Rowboat cross bench + side oars
     const bench = new THREE.Mesh(new THREE.BoxGeometry(width * 0.85, 0.1, 0.42), accentMat);
     bench.position.set(0, 0.62, 0);
     const oarL = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 1.8, 6), accentMat);
@@ -1038,7 +1005,6 @@ export function createBoatModel(boat: FischBoat): FischBoat3DHandle {
     hullGroup.add(bench, oarL, oarR);
   }
 
-  // Bench seat anchor where angler rig sits comfortably
   const seatAnchor = new THREE.Object3D();
   seatAnchor.position.set(0, isGalleon ? 1.02 : 0.68, isTrawler ? -0.45 : isGalleon ? -0.75 : -0.15);
   hullGroup.add(seatAnchor);
@@ -1057,562 +1023,953 @@ export function createBoatModel(boat: FischBoat): FischBoat3DHandle {
 }
 
 // ============================================================
-// 4. 11 Distinct Island Dioramas + Outpost Isles + Seagulls + Aurora
+// 4. Seamless Open-World Archipelago Environment (All 11 Islands Loaded Live)
 // ============================================================
 
-export function buildIslandEnvironment(
-  island: FischIsland,
+function addPineTree(
+  parent: THREE.Group,
+  x: number,
+  y: number,
+  z: number,
+  scale: number,
+  trunkMat: THREE.Material,
+  leafMat: THREE.Material,
+  snowTopMat?: THREE.Material
+): void {
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2 * scale, 0.28 * scale, 2.1 * scale, 6), trunkMat);
+  trunk.position.set(x, y + 1.0 * scale, z);
+  trunk.castShadow = true;
+  const c1 = new THREE.Mesh(new THREE.ConeGeometry(1.3 * scale, 2.0 * scale, 7), leafMat);
+  c1.position.set(x, y + 2.4 * scale, z);
+  c1.castShadow = true;
+  const c2 = new THREE.Mesh(new THREE.ConeGeometry(0.95 * scale, 1.6 * scale, 7), snowTopMat ?? leafMat);
+  c2.position.set(x, y + 3.45 * scale, z);
+  c2.castShadow = true;
+  parent.add(trunk, c1, c2);
+}
+
+function addPalmTree(
+  parent: THREE.Group,
+  x: number,
+  y: number,
+  z: number,
+  tiltX: number,
+  tiltZ: number,
+  scale: number,
+  trunkMat: THREE.Material,
+  frondMat: THREE.Material
+): void {
+  const palm = new THREE.Group();
+  palm.position.set(x, y, z);
+  let curY = 0;
+  let curX = 0;
+  let curZ = 0;
+  for (let s = 0; s < 4; s += 1) {
+    const seg = new THREE.Mesh(new THREE.CylinderGeometry(0.18 * scale, 0.24 * scale, 1.05 * scale, 6), trunkMat);
+    curX += tiltX * s * 0.22 * scale;
+    curZ += tiltZ * s * 0.22 * scale;
+    curY += 0.9 * scale;
+    seg.position.set(curX, curY - 0.45 * scale, curZ);
+    seg.rotation.z = -tiltX * 0.22;
+    seg.rotation.x = tiltZ * 0.22;
+    seg.castShadow = true;
+    palm.add(seg);
+  }
+  const crownCenter = new THREE.Group();
+  crownCenter.position.set(curX, curY, curZ);
+  for (let f = 0; f < 5; f += 1) {
+    const frond = new THREE.Mesh(new THREE.BoxGeometry(0.45 * scale, 0.08 * scale, 2.1 * scale), frondMat);
+    const ang = (f / 5) * Math.PI * 2;
+    frond.position.set(Math.cos(ang) * 0.95 * scale, 0.1 * scale, Math.sin(ang) * 0.95 * scale);
+    frond.rotation.y = -ang + Math.PI / 2;
+    frond.rotation.x = 0.28;
+    frond.castShadow = true;
+    crownCenter.add(frond);
+  }
+  palm.add(crownCenter);
+  parent.add(palm);
+}
+
+export function buildArchipelagoEnvironment(
   isDarkMode: boolean,
   maxAnisotropy: number,
   isSoftwareGl: boolean
-): IslandEnvironmentHandle {
+): ArchipelagoEnvironmentHandle {
   const group = new THREE.Group();
 
+  // Shared Textures & Pier Materials
   const woodTex = createWoodPlankTexture(maxAnisotropy);
-  const groundPalette: Record<string, [string, string]> = {
-    moosewood: ['#4A7A58', '#386144'],
-    roslit_bay: ['#D7C397', '#C2A978'],
-    mushgrove: ['#3B5E4F', '#294238'],
-    roslit_volcano: ['#3D2926', '#241816'],
-    snowcap: ['#DCEBF4', '#B8D4E6'],
-    sunstone: ['#D6A95C', '#B6873D'],
-    sovereignty: ['#7F8E9B', '#61707D'],
-    desolate_deep: ['#1C2B3B', '#111C28'],
-    forsaken_shores: ['#6E5443', '#4E392C'],
-    ancient_isle: ['#8A7C58', '#6B5E3E'],
-    the_depths: ['#22384F', '#142336'],
-  };
-  const [gBase, gAccent] = groundPalette[island.id] ?? groundPalette.moosewood;
-  const groundTex = createGroundStoneTexture(gBase, gAccent, maxAnisotropy);
-
-  const groundMat = new THREE.MeshStandardMaterial({
-    map: groundTex,
-    roughness: island.id === 'snowcap' ? 0.55 : 0.88,
-    metalness: 0.04,
-  });
-  const sandMat = new THREE.MeshStandardMaterial({
-    color: island.id === 'roslit_volcano' ? '#2A1D1B' : island.id === 'snowcap' ? '#A8C5D9' : '#D5C398',
-    roughness: 0.9,
-    metalness: 0.02,
-  });
-  const woodMat = new THREE.MeshStandardMaterial({
-    map: woodTex,
-    roughness: 0.82,
-    metalness: 0.04,
-  });
-  const darkTimberMat = new THREE.MeshStandardMaterial({
-    color: '#4A311E',
-    roughness: 0.88,
-    metalness: 0.04,
+  const woodMat = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.82, metalness: 0.04 });
+  const darkTimberMat = new THREE.MeshStandardMaterial({ color: '#4A311E', roughness: 0.88, metalness: 0.04 });
+  const bambooMat = new THREE.MeshStandardMaterial({ color: '#C5A059', roughness: 0.72, metalness: 0.05 });
+  const stonePierMat = new THREE.MeshStandardMaterial({ color: '#9BA3AD', roughness: 0.82, metalness: 0.08 });
+  const steelPierMat = new THREE.MeshStandardMaterial({ color: '#334155', roughness: 0.45, metalness: 0.65 });
+  const obsidianPierMat = new THREE.MeshStandardMaterial({ color: '#1E1B2E', roughness: 0.68, metalness: 0.25 });
+  const crystalBridgeMat = new THREE.MeshStandardMaterial({
+    color: '#38BDF8',
+    emissive: '#0284C7',
+    emissiveIntensity: 0.72,
+    roughness: 0.2,
+    metalness: 0.2,
   });
 
-  // Expanded Main Island Plateau (~2.6x walkable area)
-  const islandTop = new THREE.Mesh(new THREE.CylinderGeometry(21.8, 25.0, 2.5, 36), groundMat);
-  islandTop.scale.set(1.06, 1, 0.72);
-  islandTop.position.set(0, -0.38, -9.5);
-  islandTop.receiveShadow = true;
-  group.add(islandTop);
-
-  // Outer Coastal Reef Shelf
-  const shoreRing = new THREE.Mesh(new THREE.CylinderGeometry(25.2, 29.8, 1.6, 36), sandMat);
-  shoreRing.scale.set(1.08, 1, 0.76);
-  shoreRing.position.set(0, -0.96, -9.5);
-  shoreRing.receiveShadow = true;
-  group.add(shoreRing);
-
-  // Cobblestone Plaza Center & Boardwalk Paths connecting pier to NPCs
-  const pathMat = new THREE.MeshStandardMaterial({
-    color: island.id === 'roslit_volcano' ? '#4B3632' : island.id === 'snowcap' ? '#CBD5E1' : '#A89F91',
-    roughness: 0.9,
-  });
-  const centralPlaza = new THREE.Mesh(new THREE.CylinderGeometry(5.6, 6.0, 0.14, 24), pathMat);
-  centralPlaza.position.set(0, 1.02, -4.0);
-  centralPlaza.receiveShadow = true;
-  const spineWalk = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.12, 16.5), pathMat);
-  spineWalk.position.set(0, 1.02, -8.2);
-  spineWalk.receiveShadow = true;
-  const crossWalk = new THREE.Mesh(new THREE.BoxGeometry(24.0, 0.12, 2.6), pathMat);
-  crossWalk.position.set(0, 0.98, -3.5);
-  crossWalk.receiveShadow = true;
-  group.add(centralPlaza, spineWalk, crossWalk);
-
-  // Extended Wooden Pier Deck + Wide T-Head Harbor Dock (y = 0.96 top)
-  const pierMain = new THREE.Mesh(new THREE.BoxGeometry(5.5, 0.24, 15.2), woodMat);
-  pierMain.position.set(0, 0.84, 8.8);
-  pierMain.receiveShadow = true;
-  pierMain.castShadow = true;
-  const pierHead = new THREE.Mesh(new THREE.BoxGeometry(13.6, 0.24, 3.6), woodMat);
-  pierHead.position.set(0, 0.84, 14.8);
-  pierHead.receiveShadow = true;
-  pierHead.castShadow = true;
-  group.add(pierMain, pierHead);
-
-  // Pier Pilings & Bollards
-  const pilingPositions: Array<[number, number]> = [
-    [-2.5, 2.2],
-    [2.5, 2.2],
-    [-2.5, 6.8],
-    [2.5, 6.8],
-    [-2.5, 11.4],
-    [2.5, 11.4],
-    [-6.3, 13.2],
-    [6.3, 13.2],
-    [-6.3, 16.3],
-    [6.3, 16.3],
-    [-2.4, 16.3],
-    [2.4, 16.3],
-  ];
-  const pilingGeo = new THREE.CylinderGeometry(0.22, 0.24, 4.4, 8);
-  const bollardCapMat = new THREE.MeshStandardMaterial({ color: '#9CA3AF', roughness: 0.3, metalness: 0.75 });
-
-  for (const [px, pz] of pilingPositions) {
-    const piling = new THREE.Mesh(pilingGeo, darkTimberMat);
-    piling.position.set(px, -0.55, pz);
-    piling.castShadow = true;
-    group.add(piling);
-  }
-
-  // Brass Dock Lanterns (only 2 PointLights total for mobile/iPad efficiency)
-  const lanternLights: THREE.PointLight[] = [];
-  const lanternGlassMats: THREE.MeshStandardMaterial[] = [];
-  const lanternCoords: Array<[number, number, number]> = [
-    [-6.3, 1.55, 16.3],
-    [6.3, 1.55, 16.3],
-    [-2.5, 1.55, 3.6],
-    [2.5, 1.55, 3.6],
-    [-7.5, 1.4, -3.5],
-    [7.5, 1.4, -3.5],
-  ];
   const brassMat = new THREE.MeshStandardMaterial({ color: '#B48A3E', roughness: 0.28, metalness: 0.82 });
+  const bollardCapMat = new THREE.MeshStandardMaterial({ color: '#9CA3AF', roughness: 0.3, metalness: 0.75 });
+  const sharedLanternGlassMat = new THREE.MeshStandardMaterial({
+    color: '#FDE68A',
+    emissive: '#F59E0B',
+    emissiveIntensity: isDarkMode ? 1.55 : 0.45,
+    roughness: 0.2,
+  });
+  const lanternGlassMats: THREE.MeshStandardMaterial[] = [sharedLanternGlassMat];
 
-  lanternCoords.forEach(([lx, ly, lz], idx) => {
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 1.2, 8), darkTimberMat);
-    post.position.set(lx, ly - 0.1, lz);
-    const glassMat = new THREE.MeshStandardMaterial({
-      color: '#FDE68A',
-      emissive: '#F59E0B',
-      emissiveIntensity: isDarkMode ? 1.4 : 0.4,
-      roughness: 0.2,
+  // Shared NPC resources (prevents creating 77 duplicate textures/geos)
+  const npcFaceTex = createRobloxFaceTexture('npc');
+  const merlinFaceTex = createRobloxFaceTexture('merlin');
+  const sharedNpcRes: SharedNpcResources = {
+    skinMat: new THREE.MeshStandardMaterial({ color: '#FAD7A0', roughness: 0.62 }),
+    pantsMat: new THREE.MeshStandardMaterial({ color: '#243447', roughness: 0.8 }),
+    timberMat: darkTimberMat,
+    whiteMat: new THREE.MeshStandardMaterial({ color: '#F8FAFC', roughness: 0.75 }),
+    bronzeMat: brassMat,
+    darkLeatherMat: new THREE.MeshStandardMaterial({ color: '#291D18', roughness: 0.78 }),
+    khakiMat: new THREE.MeshStandardMaterial({ color: '#D6C7A2', roughness: 0.78 }),
+    stoneMat: new THREE.MeshStandardMaterial({ color: '#3F4A59', roughness: 0.86, metalness: 0.12 }),
+    npcHeadFrontMat: new THREE.MeshStandardMaterial({ map: npcFaceTex, roughness: 0.58 }),
+    merlinHeadFrontMat: new THREE.MeshStandardMaterial({ map: merlinFaceTex, roughness: 0.58 }),
+    legGeo: new THREE.BoxGeometry(0.32, 0.72, 0.34),
+    torsoGeo: new THREE.BoxGeometry(0.74, 0.74, 0.4),
+    sashGeo: new THREE.BoxGeometry(0.78, 0.22, 0.43),
+    armGeo: new THREE.BoxGeometry(0.25, 0.68, 0.28),
+    headGeo: new THREE.BoxGeometry(0.56, 0.56, 0.56),
+    hitboxGeo: new THREE.BoxGeometry(2.0, 3.2, 2.0),
+    ringGeo: new THREE.RingGeometry(0.95, 1.22, 20),
+  };
+
+  // Two lightweight hero PointLights kept near center harbor / Moosewood
+  const lanternLights: THREE.PointLight[] = [];
+  const pt1 = new THREE.PointLight('#FBBF24', isDarkMode ? 2.6 : 0.6, 28, 1.4);
+  pt1.position.set(0, 3.2, 13);
+  const pt2 = new THREE.PointLight('#FBBF24', isDarkMode ? 2.2 : 0.45, 28, 1.4);
+  pt2.position.set(0, 3.2, -7);
+  group.add(pt1, pt2);
+  lanternLights.push(pt1, pt2);
+
+  // Biome Palettes for the 11 Islands
+  const groundPalette: Record<
+    string,
+    { primary: [string, string]; secondary: string; stone: string; shelf: string }
+  > = {
+    moosewood: { primary: ['#4A7A58', '#386144'], secondary: '#3A6647', stone: '#9A968A', shelf: '#D5C398' },
+    roslit_bay: { primary: ['#E3CFA0', '#CCB47E'], secondary: '#558F6A', stone: '#B5ADA0', shelf: '#F1E2BC' },
+    mushgrove: { primary: ['#395948', '#284033'], secondary: '#2E4C3E', stone: '#4B5B53', shelf: '#2A3F35' },
+    roslit_volcano: { primary: ['#332220', '#1E1413'], secondary: '#241716', stone: '#47312E', shelf: '#1B1110' },
+    snowcap: { primary: ['#E2F0F7', '#C3DFEE'], secondary: '#CFE6F4', stone: '#9FB6C8', shelf: '#A2C4D9' },
+    sunstone: { primary: ['#DFB56A', '#C29548'], secondary: '#D1A04D', stone: '#C49A52', shelf: '#E8CFA0' },
+    sovereignty: { primary: ['#7E8B98', '#626F7C'], secondary: '#9AA7B5', stone: '#CBD5E1', shelf: '#6B7A88' },
+    desolate_deep: { primary: ['#1A2836', '#101B26'], secondary: '#223648', stone: '#334155', shelf: '#0F1B26' },
+    forsaken_shores: { primary: ['#6E5443', '#4E392C'], secondary: '#574133', stone: '#524943', shelf: '#8F765D' },
+    ancient_isle: { primary: ['#7F7A54', '#635E3D'], secondary: '#4C734B', stone: '#6D6857', shelf: '#A39773' },
+    the_depths: { primary: ['#1E3349', '#122132'], secondary: '#283E5A', stone: '#19293D', shelf: '#132030' },
+  };
+
+  const trunkMat = new THREE.MeshStandardMaterial({ color: '#6B4423', roughness: 0.88 });
+  const spinningCrystals: Array<{ mesh: THREE.Object3D; baseY: number; speed: number }> = [];
+  const lighthouseRotators: THREE.Object3D[] = [];
+  const dynamicFishCenters: Array<{ x: number; z: number; radius: number }> = [];
+
+  // Shared Pilings/Rock/Buoy geometries
+  const pilingGeo = new THREE.CylinderGeometry(0.18, 0.21, 3.8, 7);
+  const lanternPostGeo = new THREE.CylinderGeometry(0.055, 0.075, 1.15, 6);
+  const lanternGlobeGeo = new THREE.BoxGeometry(0.22, 0.28, 0.22);
+  const lanternCapGeo = new THREE.ConeGeometry(0.22, 0.14, 4);
+
+  // Build ALL 11 Uniquely Shaped & Detailed Islands Simultaneously!
+  for (const island of FISCH_ISLANDS) {
+    const layout = getIslandLayout(island.id);
+    const pal = groundPalette[island.id] ?? groundPalette.moosewood;
+
+    const primaryTex = createGroundStoneTexture(pal.primary[0], pal.primary[1], maxAnisotropy);
+    const primaryMat = new THREE.MeshStandardMaterial({
+      map: primaryTex,
+      roughness: island.id === 'snowcap' ? 0.45 : 0.88,
+      metalness: 0.04,
     });
-    lanternGlassMats.push(glassMat);
-    const globe = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.3, 0.24), glassMat);
-    globe.position.set(lx, ly + 0.55, lz);
-    const cap = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.16, 4), brassMat);
-    cap.position.set(lx, ly + 0.76, lz);
-    cap.rotation.y = Math.PI / 4;
-    group.add(post, globe, cap);
+    const secondaryMat = new THREE.MeshStandardMaterial({
+      color: pal.secondary,
+      roughness: island.id === 'snowcap' ? 0.4 : 0.86,
+      metalness: 0.05,
+    });
+    const stoneMat = new THREE.MeshStandardMaterial({
+      color: pal.stone,
+      roughness: island.id === 'sovereignty' ? 0.55 : 0.85,
+      metalness: 0.08,
+    });
+    const shelfMat = new THREE.MeshStandardMaterial({
+      color: pal.shelf,
+      roughness: 0.9,
+      metalness: 0.02,
+    });
+    const craterMat = new THREE.MeshStandardMaterial({
+      color: '#1C362B',
+      emissive: '#064E3B',
+      emissiveIntensity: 0.28,
+      roughness: 0.78,
+    });
 
-    if (idx < 2) {
-      const pt = new THREE.PointLight('#FBBF24', isDarkMode ? 2.8 : 0.65, 22, 1.5);
-      pt.position.set(lx, ly + 0.65, lz);
-      group.add(pt);
-      lanternLights.push(pt);
+    const islGroup = new THREE.Group();
+    islGroup.position.set(island.worldCoords.x, 0, island.worldCoords.z);
+    islGroup.rotation.y = layout.dockAngle;
+
+    // 1. Multi-Lobe Unique Island Geometry
+    for (const lobe of layout.lobes) {
+      const mat =
+        lobe.tint === 'stone'
+          ? stoneMat
+          : lobe.tint === 'secondary'
+          ? secondaryMat
+          : lobe.tint === 'crater'
+          ? craterMat
+          : primaryMat;
+
+      const cylH = lobe.height + 1.8;
+      const sides = lobe.sides ?? 20;
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.12, cylH, sides), mat);
+      body.scale.set(lobe.rx, 1, lobe.rz);
+      body.position.set(lobe.lx, (lobe.height - 1.8) * 0.5, lobe.lz);
+      body.receiveShadow = true;
+      islGroup.add(body);
+
+      if (lobe.tint !== 'crater') {
+        const shelfH = 1.4;
+        const shelf = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.15, shelfH, sides), shelfMat);
+        shelf.scale.set(lobe.rx * 1.18, 1, lobe.rz * 1.18);
+        shelf.position.set(lobe.lx, -0.64, lobe.lz);
+        shelf.receiveShadow = true;
+        islGroup.add(shelf);
+      }
+
+      if (lobe.hillPeak && lobe.hillPeak > 0) {
+        const mound = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.88, lobe.hillPeak, sides), mat);
+        mound.scale.set(lobe.rx, 1, lobe.rz);
+        mound.position.set(lobe.lx, lobe.height + lobe.hillPeak * 0.45, lobe.lz);
+        mound.receiveShadow = true;
+        islGroup.add(mound);
+      }
     }
-  });
 
-  // Island-Specific Rocks & Sea Stacks (32 InstancedMesh outside walking plaza)
-  const dummy = new THREE.Object3D();
-  const rockGeo = new THREE.DodecahedronGeometry(1.0, 0);
-  const rockColor =
-    island.id === 'roslit_volcano'
-      ? '#291D1B'
-      : island.id === 'snowcap'
-      ? '#93C5FD'
-      : island.id === 'sunstone'
-      ? '#C29243'
-      : island.id === 'desolate_deep'
-      ? '#1E293B'
-      : '#5C6975';
-  const rockMat = new THREE.MeshStandardMaterial({
-    color: rockColor,
-    roughness: island.id === 'snowcap' ? 0.28 : 0.88,
-    metalness: island.id === 'snowcap' ? 0.1 : 0.06,
-  });
+    // 2. Bridges, Elevated Ramps & Boardwalks
+    for (const br of layout.bridges) {
+      const brMat =
+        br.style === 'bamboo'
+          ? bambooMat
+          : br.style === 'stone'
+          ? stonePierMat
+          : br.style === 'obsidian'
+          ? obsidianPierMat
+          : br.style === 'crystal'
+          ? crystalBridgeMat
+          : woodMat;
+      const railMat =
+        br.style === 'crystal' ? crystalBridgeMat : br.style === 'stone' ? stoneMat : darkTimberMat;
 
-  const rockInst = new THREE.InstancedMesh(rockGeo, rockMat, 32);
-  for (let i = 0; i < 32; i += 1) {
-    const angle = (i / 32) * Math.PI * 2;
-    const dist = i < 18 ? 24.5 + (i % 3) * 2.5 : 32 + (i % 4) * 4.5;
-    const rx = Math.cos(angle) * dist * 1.15;
-    const rz = Math.sin(angle) * dist * 0.85 - 9.0;
-    if (rz > 8 && Math.abs(rx) < 12) {
-      dummy.position.set(rx + (rx >= 0 ? 15 : -15), -0.4, rz);
-    } else {
-      dummy.position.set(rx, i < 18 ? 0.45 : -0.35, rz);
+      const dx = br.x2 - br.x1;
+      const dz = br.z2 - br.z1;
+      const len = Math.hypot(dx, dz);
+      const yaw = Math.atan2(dx, dz);
+      const segs = br.arch || Math.abs(br.y2 - br.y1) > 0.08 ? 6 : 2;
+
+      for (let i = 0; i < segs; i += 1) {
+        const t0 = i / segs;
+        const t1 = (i + 1) / segs;
+        const tm = (t0 + t1) * 0.5;
+        const y0 = THREE.MathUtils.lerp(br.y1, br.y2, t0) + (br.arch ? Math.sin(t0 * Math.PI) * br.arch : 0);
+        const y1 = THREE.MathUtils.lerp(br.y1, br.y2, t1) + (br.arch ? Math.sin(t1 * Math.PI) * br.arch : 0);
+        const ym = (y0 + y1) * 0.5;
+        const segLen = (len / segs) + 0.18;
+        const slopePitch = Math.atan2(y1 - y0, len / segs);
+
+        const plank = new THREE.Mesh(new THREE.BoxGeometry(br.width, 0.2, segLen), brMat);
+        plank.position.set(br.x1 + dx * tm, ym - 0.1, br.z1 + dz * tm);
+        plank.rotation.order = 'YXZ';
+        plank.rotation.y = yaw;
+        plank.rotation.x = -slopePitch;
+        plank.receiveShadow = true;
+        plank.castShadow = true;
+        islGroup.add(plank);
+
+        // Bridge side posts at endpoints & middle
+        if (i === 0 || i === segs - 1 || i === Math.floor(segs / 2)) {
+          const perpX = Math.cos(yaw) * (br.width * 0.48);
+          const perpZ = -Math.sin(yaw) * (br.width * 0.48);
+          [-1, 1].forEach((side) => {
+            const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.85, 6), railMat);
+            post.position.set(br.x1 + dx * tm + perpX * side, ym + 0.4, br.z1 + dz * tm + perpZ * side);
+            islGroup.add(post);
+          });
+        }
+      }
     }
-    const sx = 1.2 + ((i * 17) % 10) * 0.22;
-    const sy = 0.9 + ((i * 13) % 10) * 0.34;
-    dummy.scale.set(sx, sy, sx * 0.9);
-    dummy.rotation.set(0.1 * i, angle, 0.08 * i);
-    dummy.updateMatrix();
-    rockInst.setMatrixAt(i, dummy.matrix);
-    rockInst.setColorAt(i, new THREE.Color(rockColor).offsetHSL(0, 0, ((i % 3) - 1) * 0.05));
-  }
-  rockInst.instanceMatrix.needsUpdate = true;
-  if (rockInst.instanceColor) rockInst.instanceColor.needsUpdate = true;
-  rockInst.computeBoundingSphere();
-  group.add(rockInst);
 
-  // Island Signature Multi-Part Landmarks & Scenery
-  if (island.silhouetteType === 'volcano') {
-    const cone = new THREE.Mesh(
-      new THREE.ConeGeometry(12.5, 16.0, 16, 1, true),
-      new THREE.MeshStandardMaterial({ color: '#2B1B1A', roughness: 0.92, side: THREE.DoubleSide })
+    // 3. Unique Island Pier, T-Head Dock, Pilings & Lanterns
+    const { pier } = layout;
+    const pierDeckMat =
+      pier.style === 'bamboo'
+        ? bambooMat
+        : pier.style === 'stone'
+        ? stonePierMat
+        : pier.style === 'steel'
+        ? steelPierMat
+        : pier.style === 'obsidian'
+        ? obsidianPierMat
+        : woodMat;
+    const pierLen = pier.endZ - pier.startZ;
+    const pierMidZ = (pier.startZ + pier.endZ) * 0.5;
+    const headCenterZ = pier.endZ - pier.headDepth * 0.45;
+
+    const mainPierMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(pier.width, 0.24, pierLen),
+      pierDeckMat
     );
-    cone.position.set(0, 7.2, -29.0);
-    const lavaMat = new THREE.MeshStandardMaterial({
-      color: '#EA580C',
-      emissive: '#F97316',
-      emissiveIntensity: 1.65,
-      roughness: 0.28,
-    });
-    const lavaPool = new THREE.Mesh(new THREE.CircleGeometry(4.8, 16), lavaMat);
-    lavaPool.rotation.x = -Math.PI / 2;
-    lavaPool.position.set(0, 14.5, -29.0);
-    // Obsidian vents around the perimeter
-    [-16, 16].forEach((vx) => {
-      const vent = new THREE.Mesh(new THREE.ConeGeometry(2.2, 4.8, 6), new THREE.MeshStandardMaterial({ color: '#1F1413', roughness: 0.9 }));
-      vent.position.set(vx, 2.4, -14.5);
-      const glow = new THREE.Mesh(new THREE.SphereGeometry(0.65, 8, 8), lavaMat);
-      glow.position.set(vx, 4.7, -14.5);
-      group.add(vent, glow);
-    });
-    group.add(cone, lavaPool);
-  } else if (island.silhouetteType === 'swamp') {
-    const stemMat = new THREE.MeshStandardMaterial({ color: '#D6D3D1', roughness: 0.8 });
-    const capMat = new THREE.MeshStandardMaterial({
-      color: '#10B981',
-      emissive: '#059669',
-      emissiveIntensity: 0.78,
-      roughness: 0.42,
-    });
-    [
-      [-17.5, -14.5, 1.7],
-      [17.5, -14.2, 1.55],
-      [-9.5, -21.2, 2.0],
-      [9.8, -20.8, 1.85],
-      [-19.0, -4.8, 1.25],
-      [18.8, -5.2, 1.3],
-    ].forEach(([mx, mz, ms]) => {
-      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.32 * ms, 0.48 * ms, 3.2 * ms, 8), stemMat);
-      stem.position.set(mx, 1.7 * ms, mz);
-      const cap = new THREE.Mesh(new THREE.ConeGeometry(1.75 * ms, 1.2 * ms, 10), capMat);
-      cap.position.set(mx, 3.4 * ms, mz);
-      group.add(stem, cap);
-    });
-  } else if (island.silhouetteType === 'ice') {
-    const iceMat = new THREE.MeshStandardMaterial({ color: '#BAE6FD', roughness: 0.16, metalness: 0.18 });
-    [
-      [-16.5, -15.5, 3.4, 8.5],
-      [16.8, -15.2, 3.0, 7.8],
-      [-5.5, -21.8, 4.4, 11.2],
-      [6.5, -21.2, 3.9, 9.8],
-      [-19.2, -5.0, 2.2, 5.8],
-      [19.0, -5.5, 2.3, 6.2],
-    ].forEach(([ix, iz, r, h]) => {
-      const spire = new THREE.Mesh(new THREE.ConeGeometry(r, h, 6), iceMat);
-      spire.position.set(ix, h * 0.44, iz);
-      group.add(spire);
-    });
-  } else if (island.silhouetteType === 'statue') {
-    const marbleMat = new THREE.MeshStandardMaterial({ color: '#94A3B8', roughness: 0.62, metalness: 0.12 });
-    const goldMat = new THREE.MeshStandardMaterial({
-      color: '#F59E0B',
-      emissive: '#D97706',
-      emissiveIntensity: 0.35,
-      roughness: 0.24,
-      metalness: 0.85,
-    });
-    const base = new THREE.Mesh(new THREE.BoxGeometry(6.2, 2.6, 4.8), marbleMat);
-    base.position.set(0, 1.8, -22.5);
-    const torsoS = new THREE.Mesh(new THREE.BoxGeometry(3.2, 6.2, 2.2), marbleMat);
-    torsoS.position.set(0, 6.0, -22.5);
-    const crown = new THREE.Mesh(new THREE.ConeGeometry(1.5, 1.6, 5), goldMat);
-    crown.position.set(0, 9.8, -22.5);
-    const tridentShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 10.6, 8), goldMat);
-    tridentShaft.position.set(2.6, 6.8, -21.8);
-    // Flanking marble columns
-    [-12, -7, 7, 12].forEach((cx) => {
-      const col = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.52, 4.6, 10), marbleMat);
-      col.position.set(cx, 3.1, -18.5);
-      group.add(col);
-    });
-    group.add(base, torsoS, crown, tridentShaft);
-  } else if (island.silhouetteType === 'abyss') {
-    const subMat = new THREE.MeshStandardMaterial({ color: '#EAB308', roughness: 0.32, metalness: 0.55 });
-    const cyanGlow = new THREE.MeshStandardMaterial({
-      color: '#22D3EE',
-      emissive: '#06B6D4',
-      emissiveIntensity: 1.5,
-      roughness: 0.2,
-    });
-    const hull = new THREE.Mesh(new THREE.CapsuleGeometry(1.3, 4.2, 6, 12), subMat);
-    hull.rotation.z = Math.PI / 2;
-    hull.position.set(11.5, 0.45, 7.2);
-    const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.68, 1.3, 10), subMat);
-    tower.position.set(11.5, 1.65, 7.2);
-    const porthole = new THREE.Mesh(new THREE.SphereGeometry(0.42, 10, 10), cyanGlow);
-    porthole.position.set(9.3, 0.55, 7.2);
-    // Hydrothermal chimney vents behind Altar
-    [-9, 9].forEach((hx) => {
-      const ch = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 1.4, 5.2, 8), new THREE.MeshStandardMaterial({ color: '#0F172A', roughness: 0.9 }));
-      ch.position.set(hx, 3.0, -19.5);
-      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.75, 10, 10), cyanGlow);
-      cap.position.set(hx, 5.6, -19.5);
-      group.add(ch, cap);
-    });
-    group.add(hull, tower, porthole);
-  } else if (island.silhouetteType === 'forsaken') {
-    const skullMat = new THREE.MeshStandardMaterial({ color: '#4B443E', roughness: 0.9 });
-    const emberMat = new THREE.MeshStandardMaterial({ color: '#F97316', emissive: '#EA580C', emissiveIntensity: 1.45 });
-    const skullRock = new THREE.Mesh(new THREE.DodecahedronGeometry(4.6, 0), skullMat);
-    skullRock.position.set(0, 4.2, -21.5);
-    const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.62, 8, 8), emberMat);
-    eyeL.position.set(-1.5, 4.4, -17.6);
-    const eyeR = eyeL.clone();
-    eyeR.position.x = 1.5;
-    // Shipwreck masts
-    [-14.5, 14.5].forEach((mx, idx) => {
-      const mastPole = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.36, 9.2, 8), darkTimberMat);
-      mastPole.position.set(mx, 4.2, -14.5);
-      mastPole.rotation.z = idx === 0 ? 0.24 : -0.18;
-      group.add(mastPole);
-    });
-    group.add(skullRock, eyeL, eyeR);
-  } else if (island.silhouetteType === 'ancient') {
-    const stoneMat = new THREE.MeshStandardMaterial({ color: '#6E6656', roughness: 0.88 });
-    const meteorMat = new THREE.MeshStandardMaterial({ color: '#34D399', emissive: '#10B981', emissiveIntensity: 1.4, roughness: 0.22 });
-    const meteor = new THREE.Mesh(new THREE.OctahedronGeometry(3.6, 0), meteorMat);
-    meteor.position.set(0, 4.6, -21.8);
-    [-11.5, 11.5].forEach((px, idx) => {
-      const pillar = new THREE.Mesh(new THREE.BoxGeometry(1.8, 6.4 + idx * 1.1, 1.8), stoneMat);
-      pillar.position.set(px, 3.3, -18.5);
-      pillar.rotation.z = idx === 0 ? 0.14 : -0.15;
-      group.add(pillar);
-    });
-    group.add(meteor);
-  } else if (island.silhouetteType === 'depths') {
-    const basaltMat = new THREE.MeshStandardMaterial({ color: '#172336', roughness: 0.88 });
-    const crystalGlowMat = new THREE.MeshStandardMaterial({ color: '#38BDF8', emissive: '#0284C7', emissiveIntensity: 1.5, roughness: 0.16 });
-    [
-      [-11.5, -18.5, 1.6, 7.2],
-      [0, -22.2, 2.3, 10.2],
-      [11.8, -18.0, 1.7, 7.5],
-      [-17.2, -9.2, 1.1, 4.8],
-      [17.2, -9.2, 1.1, 4.8],
-    ].forEach(([cx, cz, cr, ch]) => {
-      const base = new THREE.Mesh(new THREE.ConeGeometry(cr * 1.45, 2.6, 6), basaltMat);
-      base.position.set(cx, 1.4, cz);
-      const spire = new THREE.Mesh(new THREE.OctahedronGeometry(cr, 0), crystalGlowMat);
-      spire.scale.set(0.75, ch / (cr * 2), 0.75);
-      spire.position.set(cx, 2.4 + ch * 0.36, cz);
-      group.add(base, spire);
-    });
-  } else {
-    // Rich Scenic Groves, Boathouse & Coastal Lighthouse (Moosewood, Roslit Bay, Sunstone)
-    const trunkMat = new THREE.MeshStandardMaterial({ color: '#6B4423', roughness: 0.88 });
-    const leafHex =
-      island.silhouetteType === 'coral'
-        ? '#2E9E6B'
-        : island.silhouetteType === 'sunstone'
-        ? '#B89B38'
-        : '#236B4E';
-    const leafMat = new THREE.MeshStandardMaterial({ color: leafHex, roughness: 0.78 });
+    mainPierMesh.position.set(0, pier.elevation - 0.12, pierMidZ);
+    mainPierMesh.receiveShadow = true;
+    mainPierMesh.castShadow = true;
 
-    const treeSpots: Array<[number, number, number]> = [
-      [-17.5, -14.8, 1.3],
-      [-12.4, -19.6, 1.15],
-      [12.8, -19.4, 1.35],
-      [17.4, -14.6, 1.2],
-      [-18.4, -5.5, 1.05],
-      [18.2, -5.8, 1.2],
-      [-7.2, -20.8, 1.1],
-      [7.4, -20.6, 1.15],
+    const headPierMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(pier.headWidth, 0.24, pier.headDepth),
+      pierDeckMat
+    );
+    headPierMesh.position.set(0, pier.elevation - 0.12, headCenterZ);
+    headPierMesh.receiveShadow = true;
+    headPierMesh.castShadow = true;
+    islGroup.add(mainPierMesh, headPierMesh);
+
+    // Pier Pilings & Dock Bollards
+    const pHalfW = pier.width * 0.46;
+    const hHalfW = pier.headWidth * 0.46;
+    const pierPosts: Array<[number, number]> = [
+      [-pHalfW, pier.startZ + 1.5],
+      [pHalfW, pier.startZ + 1.5],
+      [-pHalfW, (pier.startZ + headCenterZ) * 0.5],
+      [pHalfW, (pier.startZ + headCenterZ) * 0.5],
+      [-hHalfW, headCenterZ - pier.headDepth * 0.42],
+      [hHalfW, headCenterZ - pier.headDepth * 0.42],
+      [-hHalfW, pier.endZ - 0.25],
+      [hHalfW, pier.endZ - 0.25],
     ];
-    for (const [tx, tz, ts] of treeSpots) {
-      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.28 * ts, 0.38 * ts, 2.8 * ts, 7), trunkMat);
-      trunk.position.set(tx, 1.7 * ts, tz);
-      trunk.castShadow = true;
-      const c1 = new THREE.Mesh(new THREE.ConeGeometry(1.55 * ts, 2.3 * ts, 7), leafMat);
-      c1.position.set(tx, 3.4 * ts, tz);
-      c1.castShadow = true;
-      const c2 = new THREE.Mesh(new THREE.ConeGeometry(1.1 * ts, 1.8 * ts, 7), leafMat);
-      c2.position.set(tx, 4.65 * ts, tz);
-      c2.castShadow = true;
-      group.add(trunk, c1, c2);
+    for (const [px, pz] of pierPosts) {
+      const piling = new THREE.Mesh(pilingGeo, darkTimberMat);
+      piling.position.set(px, -0.75, pz);
+      islGroup.add(piling);
     }
 
-    // Coastal Cabin & Landmark Tower
-    const wallMat = new THREE.MeshStandardMaterial({ color: '#B08968', roughness: 0.85 });
-    const roofMat = new THREE.MeshStandardMaterial({ color: island.accentHex, roughness: 0.62 });
-    const cabin = new THREE.Mesh(new THREE.BoxGeometry(4.4, 2.9, 3.4), wallMat);
-    cabin.position.set(16.8, 2.2, -1.8);
-    cabin.castShadow = true;
-    const roof = new THREE.Mesh(new THREE.ConeGeometry(3.4, 1.75, 4), roofMat);
-    roof.rotation.y = Math.PI / 4;
-    roof.position.set(16.8, 4.5, -1.8);
-    roof.castShadow = true;
-    group.add(cabin, roof);
+    // Pier Corner Lanterns (shared emissive material)
+    const lanternSpots: Array<[number, number]> = [
+      [-hHalfW, pier.endZ - 0.3],
+      [hHalfW, pier.endZ - 0.3],
+    ];
+    for (const [lx, lz] of lanternSpots) {
+      const post = new THREE.Mesh(lanternPostGeo, darkTimberMat);
+      post.position.set(lx, pier.elevation + 0.55, lz);
+      const globe = new THREE.Mesh(lanternGlobeGeo, sharedLanternGlassMat);
+      globe.position.set(lx, pier.elevation + 1.18, lz);
+      const cap = new THREE.Mesh(lanternCapGeo, brassMat);
+      cap.position.set(lx, pier.elevation + 1.38, lz);
+      cap.rotation.y = Math.PI / 4;
+      islGroup.add(post, globe, cap);
+    }
 
-    // Harbor Lighthouse / Sun Obelisk on NW ridge
-    const towerMat = new THREE.MeshStandardMaterial({ color: '#F1F5F9', roughness: 0.65 });
-    const lighthouse = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.55, 8.6, 12), towerMat);
-    lighthouse.position.set(-16.5, 5.0, -16.5);
-    lighthouse.castShadow = true;
-    const beaconGlow = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.85, 0.85, 1.0, 12),
-      new THREE.MeshStandardMaterial({ color: '#FDE68A', emissive: '#F59E0B', emissiveIntensity: 1.4 })
+    // Harbor Welcome Beacon Arch on pier neck + island harbor nameplate sprite!
+    const harborGatePostL = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.11, 0.13, 3.0, 7),
+      pier.style === 'stone' ? stoneMat : darkTimberMat
     );
-    beaconGlow.position.set(-16.5, 9.6, -16.5);
-    const capDome = new THREE.Mesh(new THREE.ConeGeometry(1.25, 1.2, 12), roofMat);
-    capDome.position.set(-16.5, 10.7, -16.5);
-    group.add(lighthouse, beaconGlow, capDome);
+    harborGatePostL.position.set(-pHalfW, pier.elevation + 1.4, pier.startZ + 1.2);
+    const harborGatePostR = harborGatePostL.clone();
+    harborGatePostR.position.x = pHalfW;
+    const harborBeam = new THREE.Mesh(
+      new THREE.BoxGeometry(pier.width + 0.4, 0.28, 0.32),
+      new THREE.MeshStandardMaterial({ color: island.accentHex, roughness: 0.45 })
+    );
+    harborBeam.position.set(0, pier.elevation + 2.85, pier.startZ + 1.2);
+    islGroup.add(harborGatePostL, harborGatePostR, harborBeam);
+
+    const harborBanner = createNameplateSprite(island.name, island.subtitle, island.accentHex);
+    harborBanner.scale.set(6.8, 2.0, 1);
+    harborBanner.position.set(0, 7.6, 8.2);
+    islGroup.add(harborBanner);
+
+    // Record world coordinate around pier tip for ambient fish schools
+    const dockTipWorld = new THREE.Vector3(0, 0, pier.endZ + 4)
+      .applyAxisAngle(new THREE.Vector3(0, 1, 0), layout.dockAngle)
+      .add(new THREE.Vector3(island.worldCoords.x, 0, island.worldCoords.z));
+    dynamicFishCenters.push({ x: dockTipWorld.x, z: dockTipWorld.z, radius: 6.5 });
+
+    // 4. Bespoke High-Detail Procedural Island Architecture & Landmarks
+    if (island.id === 'moosewood') {
+      // Striped Coastal Lighthouse on West Bluff (-11.2, -11.8, h=1.38)
+      const lhBaseY = getGroundHeightAt('moosewood', -11.2, -11.8);
+      const redMat = new THREE.MeshStandardMaterial({ color: '#DC2626', roughness: 0.58 });
+      const whiteMat = new THREE.MeshStandardMaterial({ color: '#F8FAFC', roughness: 0.55 });
+      const lhFoot = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.4, 0.8, 12), stoneMat);
+      lhFoot.position.set(-11.2, lhBaseY + 0.35, -11.8);
+      islGroup.add(lhFoot);
+
+      for (let band = 0; band < 5; band += 1) {
+        const rb = 1.65 - band * 0.12;
+        const rt = 1.53 - band * 0.12;
+        const seg = new THREE.Mesh(
+          new THREE.CylinderGeometry(rt, rb, 1.55, 12),
+          band % 2 === 0 ? whiteMat : redMat
+        );
+        seg.position.set(-11.2, lhBaseY + 1.45 + band * 1.5, -11.8);
+        seg.castShadow = true;
+        islGroup.add(seg);
+      }
+      const gallery = new THREE.Mesh(new THREE.CylinderGeometry(1.45, 1.25, 0.35, 12), darkTimberMat);
+      gallery.position.set(-11.2, lhBaseY + 8.6, -11.8);
+      const beaconRoom = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.92, 0.92, 1.2, 10),
+        new THREE.MeshStandardMaterial({ color: '#FEF08A', emissive: '#F59E0B', emissiveIntensity: 1.5 })
+      );
+      beaconRoom.position.set(-11.2, lhBaseY + 9.3, -11.8);
+      const lhCap = new THREE.Mesh(new THREE.ConeGeometry(1.35, 1.35, 12), redMat);
+      lhCap.position.set(-11.2, lhBaseY + 10.55, -11.8);
+      const beamRotor = new THREE.Group();
+      beamRotor.position.set(-11.2, lhBaseY + 9.3, -11.8);
+      const lightCone = new THREE.Mesh(
+        new THREE.ConeGeometry(1.2, 6.2, 8, 1, true),
+        new THREE.MeshBasicMaterial({ color: '#FEF08A', transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide })
+      );
+      lightCone.rotation.z = Math.PI / 2;
+      lightCone.position.x = 3.2;
+      beamRotor.add(lightCone);
+      lighthouseRotators.push(beamRotor);
+      islGroup.add(gallery, beaconRoom, lhCap, beamRotor);
+
+      // East Boathouse Cabin on East Terrace (11.2, -10.2, h=1.08)
+      const cabY = getGroundHeightAt('moosewood', 11.8, -8.2);
+      const cabin = new THREE.Mesh(new THREE.BoxGeometry(4.2, 2.7, 3.4), new THREE.MeshStandardMaterial({ color: '#B08968', roughness: 0.84 }));
+      cabin.position.set(11.8, cabY + 1.3, -8.2);
+      cabin.castShadow = true;
+      const cabRoof = new THREE.Mesh(new THREE.ConeGeometry(3.35, 1.85, 4), redMat);
+      cabRoof.rotation.y = Math.PI / 4;
+      cabRoof.position.set(11.8, cabY + 3.55, -8.2);
+      const winGlow = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.7, 3.46), sharedLanternGlassMat);
+      winGlow.position.set(11.8, cabY + 1.45, -8.2);
+      islGroup.add(cabin, cabRoof, winGlow);
+
+      // Pine Trees across Moosewood edges
+      const mwLeaf = new THREE.MeshStandardMaterial({ color: '#236B4E', roughness: 0.78 });
+      [
+        [-8.2, -16.0, 1.25],
+        [-5.4, -13.8, 1.05],
+        [7.6, -15.6, 1.2],
+        [14.2, -13.6, 1.15],
+        [-13.5, -7.4, 1.1],
+        [4.8, -16.8, 1.1],
+      ].forEach(([tx, tz, ts]) => addPineTree(islGroup, tx, getGroundHeightAt('moosewood', tx, tz), tz, ts, trunkMat, mwLeaf));
+    } else if (island.id === 'roslit_bay') {
+      const palmLeafMat = new THREE.MeshStandardMaterial({ color: '#2E9E6B', roughness: 0.72 });
+      [
+        [-10.8, -4.5, -0.45, 0.25, 1.15],
+        [-11.2, -12.8, -0.5, -0.35, 1.25],
+        [10.8, -4.2, 0.48, 0.22, 1.18],
+        [11.0, -13.0, 0.52, -0.3, 1.28],
+        [-5.2, -17.8, -0.3, -0.45, 1.1],
+        [5.4, -17.6, 0.35, -0.42, 1.2],
+      ].forEach(([px, pz, rx, rz, ps]) =>
+        addPalmTree(islGroup, px, getGroundHeightAt('roslit_bay', px, pz), pz, rx, rz, ps, trunkMat, palmLeafMat)
+      );
+
+      // Vibrant Coral Reef Clusters framing the inner turquoise lagoon
+      const coralColors = ['#FB7185', '#2DD4BF', '#FBBF24', '#C084FC'];
+      [
+        [-4.2, -12.6, 0],
+        [4.2, -12.4, 1],
+        [-6.4, -6.2, 2],
+        [6.4, -6.2, 3],
+        [0, -18.5, 0],
+      ].forEach(([cx, cz, ci]) => {
+        const cMat = new THREE.MeshStandardMaterial({ color: coralColors[ci % coralColors.length], roughness: 0.45 });
+        const brain = new THREE.Mesh(new THREE.DodecahedronGeometry(0.85, 0), cMat);
+        brain.position.set(cx, 0.35, cz);
+        const horn = new THREE.Mesh(new THREE.ConeGeometry(0.32, 1.4, 5), cMat);
+        horn.position.set(cx + 0.5, 0.85, cz - 0.2);
+        horn.rotation.z = -0.35;
+        islGroup.add(brain, horn);
+      });
+    } else if (island.id === 'mushgrove') {
+      // Giant Bioluminescent Swamp Mushrooms + Lilypads across the 4 muddy islets
+      const stemMat = new THREE.MeshStandardMaterial({ color: '#D6D3D1', roughness: 0.82 });
+      const glowCaps = [
+        new THREE.MeshStandardMaterial({ color: '#10B981', emissive: '#059669', emissiveIntensity: 0.85, roughness: 0.4 }),
+        new THREE.MeshStandardMaterial({ color: '#2DD4BF', emissive: '#0D9488', emissiveIntensity: 0.85, roughness: 0.4 }),
+      ];
+      [
+        [-12.2, -10.4, 1.45, 0],
+        [-10.2, -14.0, 1.8, 1],
+        [12.4, -10.2, 1.5, 1],
+        [10.4, -14.2, 1.75, 0],
+        [-4.2, -18.8, 2.0, 0],
+        [4.2, -18.6, 1.85, 1],
+        [-5.2, -5.0, 1.15, 1],
+        [5.2, -5.0, 1.15, 0],
+      ].forEach(([mx, mz, ms, ci]) => {
+        const my = getGroundHeightAt('mushgrove', mx, mz);
+        const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.26 * ms, 0.4 * ms, 2.7 * ms, 7), stemMat);
+        stalk.position.set(mx, my + 1.3 * ms, mz);
+        stalk.castShadow = true;
+        const cap = new THREE.Mesh(new THREE.ConeGeometry(1.55 * ms, 1.05 * ms, 9), glowCaps[ci % 2]);
+        cap.position.set(mx, my + 2.7 * ms, mz);
+        islGroup.add(stalk, cap);
+      });
+
+      // Swamp Lilypads floating in the water channels between the islets
+      const padMat = new THREE.MeshStandardMaterial({ color: '#15803D', roughness: 0.68 });
+      [
+        [0, -10.8],
+        [-3.4, -11.2],
+        [3.4, -11.0],
+        [-6.8, -3.5],
+        [6.8, -3.5],
+      ].forEach(([lx, lz]) => {
+        const pad = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.05, 0.08, 10), padMat);
+        pad.position.set(lx, 0.08, lz);
+        islGroup.add(pad);
+      });
+    } else if (island.id === 'sunstone') {
+      // Merlin's Tall Octagonal Wizard Tower atop Tier 3 Summit (0, -19.8) + Orbiting Astrolabe Rings!
+      const baseY = getGroundHeightAt('sunstone', 0, -19.2);
+      const goldWallMat = new THREE.MeshStandardMaterial({ color: '#D9A952', roughness: 0.65, metalness: 0.15 });
+      const wizRoofMat = new THREE.MeshStandardMaterial({ color: '#4C1D95', roughness: 0.42, metalness: 0.25 });
+      const glowGoldMat = new THREE.MeshStandardMaterial({
+        color: '#FDE047',
+        emissive: '#F59E0B',
+        emissiveIntensity: 1.1,
+        metalness: 0.75,
+        roughness: 0.2,
+      });
+
+      const towerBody = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.7, 8.8, 8), goldWallMat);
+      towerBody.position.set(0, baseY + 4.3, -19.5);
+      towerBody.castShadow = true;
+      const wizSpire = new THREE.Mesh(new THREE.ConeGeometry(2.75, 4.2, 8), wizRoofMat);
+      wizSpire.position.set(0, baseY + 10.6, -19.5);
+      wizSpire.castShadow = true;
+
+      const gyroRing1 = new THREE.Mesh(new THREE.TorusGeometry(3.2, 0.14, 8, 20), glowGoldMat);
+      gyroRing1.position.set(0, baseY + 8.6, -19.5);
+      const gyroRing2 = new THREE.Mesh(new THREE.TorusGeometry(2.6, 0.12, 8, 18), glowGoldMat);
+      gyroRing2.position.set(0, baseY + 8.6, -19.5);
+      gyroRing2.rotation.x = Math.PI / 3;
+      spinningCrystals.push(
+        { mesh: gyroRing1, baseY: baseY + 8.6, speed: 0.85 },
+        { mesh: gyroRing2, baseY: baseY + 8.6, speed: -1.1 }
+      );
+      islGroup.add(towerBody, wizSpire, gyroRing1, gyroRing2);
+
+      // Ceremonial Sun Pillars flanking Tier 1 & Tier 2
+      [-8.5, 8.5].forEach((px) => {
+        const obelisk = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.65, 4.4, 6), goldWallMat);
+        obelisk.position.set(px, 2.9, -10.5);
+        const sunCap = new THREE.Mesh(new THREE.OctahedronGeometry(0.55, 0), glowGoldMat);
+        sunCap.position.set(px, 5.4, -10.5);
+        islGroup.add(obelisk, sunCap);
+      });
+    } else if (island.id === 'forsaken_shores') {
+      // Giant Stone Skull Monolith on West Peninsula + Half-Sunken Wrecked Pirate Galleon in Cove!
+      const skullMat = new THREE.MeshStandardMaterial({ color: '#4B443E', roughness: 0.9 });
+      const emberMat = new THREE.MeshStandardMaterial({ color: '#F97316', emissive: '#EA580C', emissiveIntensity: 1.6 });
+      const skY = getGroundHeightAt('forsaken_shores', -10.5, -13.2);
+      const cranium = new THREE.Mesh(new THREE.DodecahedronGeometry(3.8, 0), skullMat);
+      cranium.position.set(-10.5, skY + 3.2, -13.6);
+      const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.55, 8, 8), emberMat);
+      eyeL.position.set(-11.8, skY + 3.4, -10.4);
+      const eyeR = eyeL.clone();
+      eyeR.position.x = -9.2;
+      islGroup.add(cranium, eyeL, eyeR);
+
+      // Half-Sunken Wrecked Pirate Galleon resting in the northern cove water (0, -16.8)!
+      const wreck = new THREE.Group();
+      wreck.position.set(0, 0.6, -17.0);
+      wreck.rotation.z = 0.28;
+      wreck.rotation.x = -0.18;
+      const wreckHull = new THREE.Mesh(new THREE.BoxGeometry(3.6, 2.2, 8.8), darkTimberMat);
+      wreckHull.castShadow = true;
+      const brokenMast1 = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.28, 7.6, 7), darkTimberMat);
+      brokenMast1.position.set(0, 4.2, -1.2);
+      brokenMast1.rotation.z = 0.14;
+      const brokenMast2 = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.24, 5.5, 7), darkTimberMat);
+      brokenMast2.position.set(0, 3.0, 2.0);
+      brokenMast2.rotation.x = -0.22;
+      const tatteredSail = new THREE.Mesh(
+        new THREE.BoxGeometry(3.8, 2.4, 0.1),
+        new THREE.MeshStandardMaterial({ color: '#D6CFC2', roughness: 0.9 })
+      );
+      tatteredSail.position.set(0, 5.0, -1.1);
+      wreck.add(wreckHull, brokenMast1, brokenMast2, tatteredSail);
+      islGroup.add(wreck);
+
+      // Brass Harbor Cannons on East Headland & South Sandspit
+      const cannonMat = new THREE.MeshStandardMaterial({ color: '#1F2937', roughness: 0.35, metalness: 0.72 });
+      [
+        [8.5, -5.0, -0.4],
+        [-6.2, -1.5, 0.35],
+      ].forEach(([cx, cz, ry]) => {
+        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.34, 1.9, 8), cannonMat);
+        barrel.position.set(cx, getGroundHeightAt('forsaken_shores', cx, cz) + 0.55, cz);
+        barrel.rotation.x = Math.PI / 2 - 0.2;
+        barrel.rotation.z = ry;
+        islGroup.add(barrel);
+      });
+    } else if (island.id === 'snowcap') {
+      // Translucent Glacier Spires + Frozen Waterfall + Cozy Glowing Igloo + Snow Pines
+      const iceMat = new THREE.MeshStandardMaterial({ color: '#93C5FD', roughness: 0.14, metalness: 0.24 });
+      const snowMat = new THREE.MeshStandardMaterial({ color: '#F8FAFC', roughness: 0.55 });
+      const pineMat = new THREE.MeshStandardMaterial({ color: '#1E5245', roughness: 0.8 });
+
+      [
+        [-11.8, -16.0, 2.8, 8.8],
+        [-7.0, -17.6, 2.2, 6.8],
+        [11.5, -15.8, 3.1, 9.6],
+        [6.8, -17.4, 2.4, 7.2],
+      ].forEach(([ix, iz, r, h]) => {
+        const y = getGroundHeightAt('snowcap', ix, iz);
+        const spire = new THREE.Mesh(new THREE.ConeGeometry(r, h, 6), iceMat);
+        spire.position.set(ix, y + h * 0.44, iz);
+        spire.castShadow = true;
+        islGroup.add(spire);
+      });
+
+      // Frozen Waterfall Cascade in center north cliff
+      const icefall = new THREE.Mesh(new THREE.BoxGeometry(3.2, 5.2, 1.4), iceMat);
+      icefall.position.set(0, 2.2, -18.5);
+      icefall.rotation.x = 0.22;
+      islGroup.add(icefall);
+
+      // Snow Igloo Cabin
+      const igY = getGroundHeightAt('snowcap', -10.5, -4.6);
+      const igloo = new THREE.Mesh(new THREE.SphereGeometry(2.1, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), snowMat);
+      igloo.position.set(-10.5, igY, -4.6);
+      const igDoorGlow = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.0, 0.8), sharedLanternGlassMat);
+      igDoorGlow.position.set(-9.4, igY + 0.5, -3.5);
+      islGroup.add(igloo, igDoorGlow);
+
+      [
+        [9.8, -5.2, 1.15],
+        [12.2, -12.0, 1.25],
+        [-11.6, -11.5, 1.2],
+      ].forEach(([tx, tz, ts]) => addPineTree(islGroup, tx, getGroundHeightAt('snowcap', tx, tz), tz, ts, trunkMat, pineMat, snowMat));
+    } else if (island.id === 'roslit_volcano') {
+      // Caldera Mountain Cone + Molten Lava River down the Central Gorge + Basalt Columns
+      const lavaMat = new THREE.MeshStandardMaterial({
+        color: '#EA580C',
+        emissive: '#F97316',
+        emissiveIntensity: 1.7,
+        roughness: 0.25,
+      });
+      const basaltMat = new THREE.MeshStandardMaterial({ color: '#1F1413', roughness: 0.92 });
+
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(10.5, 14.2, 12, 1, true), basaltMat);
+      cone.position.set(0, 7.6, -22.5);
+      const craterLava = new THREE.Mesh(new THREE.CircleGeometry(3.8, 12), lavaMat);
+      craterLava.rotation.x = -Math.PI / 2;
+      craterLava.position.set(0, 14.0, -22.5);
+
+      // Glowing Lava River flowing between West & East Crags under the obsidian arch bridge!
+      const lavaStream = new THREE.Mesh(new THREE.BoxGeometry(3.1, 0.22, 14.5), lavaMat);
+      lavaStream.position.set(0, 0.16, -7.2);
+      islGroup.add(cone, craterLava, lavaStream);
+
+      // Hexagonal Basalt Columns & Glow Vents
+      [
+        [-10.2, -11.5, 4.6],
+        [-11.0, -8.5, 3.8],
+        [10.2, -11.5, 4.8],
+        [11.0, -8.2, 3.6],
+      ].forEach(([bx, bz, bh]) => {
+        const col = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.25, bh, 6), basaltMat);
+        col.position.set(bx, getGroundHeightAt('roslit_volcano', bx, bz) + bh * 0.45, bz);
+        islGroup.add(col);
+      });
+    } else if (island.id === 'sovereignty') {
+      // Colossal Statue of Sovereignty holding a Giant Golden Trident + Fluted Marble Columns!
+      const marbleMat = new THREE.MeshStandardMaterial({ color: '#CBD5E1', roughness: 0.56, metalness: 0.1 });
+      const goldMat = new THREE.MeshStandardMaterial({
+        color: '#F59E0B',
+        emissive: '#D97706',
+        emissiveIntensity: 0.35,
+        roughness: 0.22,
+        metalness: 0.85,
+      });
+      const stY = getGroundHeightAt('sovereignty', 0, -18.5);
+      const plinth = new THREE.Mesh(new THREE.BoxGeometry(5.6, 2.4, 4.2), marbleMat);
+      plinth.position.set(0, stY + 1.1, -18.8);
+      const torso = new THREE.Mesh(new THREE.BoxGeometry(3.0, 5.8, 2.0), marbleMat);
+      torso.position.set(0, stY + 5.1, -18.8);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(1.65, 1.75, 1.65), marbleMat);
+      head.position.set(0, stY + 8.85, -18.8);
+      const crown = new THREE.Mesh(new THREE.ConeGeometry(1.35, 1.5, 5), goldMat);
+      crown.position.set(0, stY + 10.45, -18.8);
+      const tridentShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 11.4, 8), goldMat);
+      tridentShaft.position.set(2.5, stY + 6.4, -18.0);
+      const tridentBar = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.22, 0.22), goldMat);
+      tridentBar.position.set(2.5, stY + 11.4, -18.0);
+      [-0.75, 0, 0.75].forEach((tx) => {
+        const prong = new THREE.Mesh(new THREE.ConeGeometry(0.16, 1.25, 5), goldMat);
+        prong.position.set(2.5 + tx, stY + 12.1, -18.0);
+        islGroup.add(prong);
+      });
+      islGroup.add(plinth, torso, head, crown, tridentShaft, tridentBar);
+
+      // Semicircle of 8 Classical Marble Columns
+      [
+        [-9.2, -6.4, 4.4],
+        [-9.2, -10.6, 4.8],
+        [9.2, -6.4, 4.4],
+        [9.2, -10.6, 4.8],
+        [-7.2, -15.6, 5.2],
+        [7.2, -15.6, 5.2],
+      ].forEach(([cx, cz, ch]) => {
+        const cy = getGroundHeightAt('sovereignty', cx, cz);
+        const col = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.55, ch, 10), marbleMat);
+        col.position.set(cx, cy + ch * 0.48, cz);
+        col.castShadow = true;
+        islGroup.add(col);
+      });
+    } else if (island.id === 'desolate_deep') {
+      // Moored Yellow Research Submarine + Steel A-Frame Gantry Crane + Bathysphere + Smoker Vents
+      const subMat = new THREE.MeshStandardMaterial({ color: '#EAB308', roughness: 0.3, metalness: 0.55 });
+      const cyanGlow = new THREE.MeshStandardMaterial({
+        color: '#22D3EE',
+        emissive: '#06B6D4',
+        emissiveIntensity: 1.55,
+        roughness: 0.18,
+      });
+      const subHull = new THREE.Mesh(new THREE.CapsuleGeometry(1.25, 4.4, 6, 10), subMat);
+      subHull.rotation.z = Math.PI / 2;
+      subHull.position.set(9.2, 0.45, 7.6);
+      const subTower = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.65, 1.35, 8), subMat);
+      subTower.position.set(9.2, 1.65, 7.6);
+      const subPort = new THREE.Mesh(new THREE.SphereGeometry(0.42, 8, 8), cyanGlow);
+      subPort.position.set(7.0, 0.55, 7.6);
+      islGroup.add(subHull, subTower, subPort);
+
+      // Steel A-Frame Crane + Suspended Bathysphere
+      const craneY = getGroundHeightAt('desolate_deep', -4.2, -1.5);
+      const legA = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 6.2, 6), steelPierMat);
+      legA.position.set(-4.8, craneY + 2.8, -1.5);
+      legA.rotation.z = -0.18;
+      const legB = legA.clone();
+      legB.position.x = -3.4;
+      legB.rotation.z = 0.18;
+      const boom = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.32, 4.6), steelPierMat);
+      boom.position.set(-4.1, craneY + 5.7, 0.2);
+      const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.95, 10, 10), subMat);
+      sphere.position.set(-4.1, craneY + 2.4, 2.1);
+      islGroup.add(legA, legB, boom, sphere);
+
+      // Hydrothermal Smoker Vents on West & East Ridges
+      [
+        [-12.2, -13.6],
+        [12.2, -13.6],
+      ].forEach(([hx, hz]) => {
+        const hy = getGroundHeightAt('desolate_deep', hx, hz);
+        const vent = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 1.35, 4.6, 7), steelPierMat);
+        vent.position.set(hx, hy + 2.2, hz);
+        const orb = new THREE.Mesh(new THREE.SphereGeometry(0.7, 8, 8), cyanGlow);
+        orb.position.set(hx, hy + 4.6, hz);
+        islGroup.add(vent, orb);
+      });
+    } else if (island.id === 'ancient_isle') {
+      // Sunken Emerald Meteorite Crystal + Giant Arching Leviathan Ribcage + Ruined Monoliths!
+      const meteorMat = new THREE.MeshStandardMaterial({
+        color: '#34D399',
+        emissive: '#10B981',
+        emissiveIntensity: 1.5,
+        roughness: 0.2,
+      });
+      const boneMat = new THREE.MeshStandardMaterial({ color: '#E7E0CE', roughness: 0.78 });
+      const ruinMat = new THREE.MeshStandardMaterial({ color: '#6E6656', roughness: 0.88 });
+
+      const meteor = new THREE.Mesh(new THREE.OctahedronGeometry(2.8, 0), meteorMat);
+      meteor.position.set(0, 2.2, -10.5);
+      meteor.rotation.set(0.32, 0.4, 0.22);
+      spinningCrystals.push({ mesh: meteor, baseY: 2.2, speed: 0.35 });
+      islGroup.add(meteor);
+
+      // Arched Prehistoric Leviathan Rib Bones curving over the crater!
+      [-4.2, -2.0, 2.0, 4.2].forEach((rx, idx) => {
+        const rib = new THREE.Mesh(new THREE.TorusGeometry(4.8, 0.34, 6, 12, Math.PI * 0.65), boneMat);
+        rib.position.set(rx * 1.1, 0.8, -14.5 + (idx % 2) * 1.6);
+        rib.rotation.y = Math.PI / 2;
+        rib.rotation.z = 0.2;
+        islGroup.add(rib);
+      });
+
+      // Ancient Monoliths on West & East Crater Rim
+      [
+        [-11.2, -13.6, 0.14],
+        [11.2, -13.6, -0.14],
+      ].forEach(([px, pz, rz]) => {
+        const py = getGroundHeightAt('ancient_isle', px, pz);
+        const pil = new THREE.Mesh(new THREE.BoxGeometry(1.6, 5.8, 1.6), ruinMat);
+        pil.position.set(px, py + 2.7, pz);
+        pil.rotation.z = rz;
+        islGroup.add(pil);
+      });
+    } else if (island.id === 'the_depths') {
+      // Faceted Cyan-Violet Crystal Cathedral + Abyssal Torii Gate Arches!
+      const cyanCrystal = new THREE.MeshStandardMaterial({
+        color: '#38BDF8',
+        emissive: '#0284C7',
+        emissiveIntensity: 1.5,
+        roughness: 0.16,
+      });
+      const violetCrystal = new THREE.MeshStandardMaterial({
+        color: '#A78BFA',
+        emissive: '#7C3AED',
+        emissiveIntensity: 1.35,
+        roughness: 0.18,
+      });
+
+      [
+        [0, -19.2, 2.4, 10.6, 0],
+        [-3.6, -18.2, 1.5, 7.2, 1],
+        [3.6, -18.2, 1.5, 7.2, 1],
+        [-14.2, -11.5, 1.4, 6.2, 0],
+        [14.2, -11.5, 1.4, 6.2, 1],
+      ].forEach(([cx, cz, cr, ch, ci]) => {
+        const cy = getGroundHeightAt('the_depths', cx, cz);
+        const spire = new THREE.Mesh(
+          new THREE.OctahedronGeometry(cr, 0),
+          ci === 0 ? cyanCrystal : violetCrystal
+        );
+        spire.scale.set(0.75, ch / (cr * 2), 0.75);
+        spire.position.set(cx, cy + ch * 0.42, cz);
+        islGroup.add(spire);
+      });
+
+      // Abyssal Torii Gate framing bridge to Cathedral
+      const gateY = getGroundHeightAt('the_depths', 0, -14.0);
+      [-2.2, 2.2].forEach((gx) => {
+        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.3, 4.4, 8), obsidianPierMat);
+        pillar.position.set(gx, gateY + 2.1, -13.6);
+        islGroup.add(pillar);
+      });
+      const lintel = new THREE.Mesh(new THREE.BoxGeometry(6.4, 0.42, 0.55), cyanCrystal);
+      lintel.position.set(0, gateY + 4.3, -13.6);
+      islGroup.add(lintel);
+    }
+
+    // Coastal perimeter rocks around each island
+    const rockMat = new THREE.MeshStandardMaterial({
+      color: pal.stone,
+      roughness: island.id === 'snowcap' ? 0.32 : 0.88,
+    });
+    const rockGeo = new THREE.DodecahedronGeometry(1.0, 0);
+    for (let r = 0; r < 8; r += 1) {
+      const ang = (r / 8) * Math.PI * 2 + 0.35;
+      // Leave pier corridor (+Z) clear of rocks
+      if (Math.sin(ang) > 0.65) continue;
+      const dist = 16.5 + (r % 3) * 2.2;
+      const rock = new THREE.Mesh(rockGeo, rockMat);
+      rock.position.set(Math.cos(ang) * dist, 0.15, Math.sin(ang) * dist - 7.5);
+      const sx = 1.0 + (r % 3) * 0.45;
+      rock.scale.set(sx, 0.85 + (r % 2) * 0.5, sx * 0.9);
+      rock.rotation.set(0.2 * r, ang, 0.15 * r);
+      islGroup.add(rock);
+    }
+
+    group.add(islGroup);
   }
 
-  // Harbor Detail Props: Mooring Barrels & Crates on wide T-Dock
-  const crateMat = new THREE.MeshStandardMaterial({ color: '#8C623E', roughness: 0.86 });
-  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.78, 10), crateMat);
-  barrel.position.set(-5.6, 1.35, 15.6);
-  const crateSmall = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.6, 0.7), crateMat);
-  crateSmall.position.set(3.5, 1.26, 15.8);
-  group.add(barrel, crateSmall);
-
-  // Sea Route Channel Buoys near central harbor lanes
-  const buoyCoords: Array<[number, number, string]> = [
-    [-20, 26, '#F97316'],
-    [20, 26, '#34D399'],
-    [0, 34, '#38BDF8'],
+  // Open-Sea Shipping Lane Channel Buoys between islands
+  const seaBuoys: Array<[number, number, string]> = [
+    [-25, 22, '#F97316'],
+    [28, 12, '#34D399'],
+    [-26, -34, '#7DD3FC'],
+    [26, -32, '#10B981'],
+    [82, 4, '#FB923C'],
+    [-90, -14, '#22D3EE'],
+    [28, 72, '#38BDF8'],
   ];
-  for (const [bx, bz, bHex] of buoyCoords) {
-    const buoyBase = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.55, 0.75, 0.75, 10),
-      new THREE.MeshStandardMaterial({ color: '#DC2626', roughness: 0.55 })
+  const buoyBodyMat = new THREE.MeshStandardMaterial({ color: '#DC2626', roughness: 0.55 });
+  for (const [bx, bz, hex] of seaBuoys) {
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.78, 0.75, 8), buoyBodyMat);
+    base.position.set(bx, 0.18, bz);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.85, 6), bollardCapMat);
+    pole.position.set(bx, 0.75, bz);
+    const bulb = new THREE.Mesh(
+      new THREE.SphereGeometry(0.26, 8, 8),
+      new THREE.MeshStandardMaterial({ color: hex, emissive: hex, emissiveIntensity: 1.6 })
     );
-    buoyBase.position.set(bx, 0.18, bz);
-    const buoyTop = new THREE.Mesh(
-      new THREE.SphereGeometry(0.24, 8, 8),
-      new THREE.MeshStandardMaterial({ color: bHex, emissive: bHex, emissiveIntensity: 1.6 })
-    );
-    buoyTop.position.set(bx, 1.15, bz);
-    const buoyPole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.8, 6), bollardCapMat);
-    buoyPole.position.set(bx, 0.72, bz);
-    group.add(buoyBase, buoyPole, buoyTop);
+    bulb.position.set(bx, 1.25, bz);
+    group.add(base, pole, bulb);
   }
 
-  // Render ALL 10 Sailable Destination Neighbor Islands across the Archipelago Ocean!
-  const neighborHarbors = getNeighborHarborBeacons(island.id);
-  for (const beacon of neighborHarbors) {
-    const harborGroup = new THREE.Group();
-    harborGroup.position.set(beacon.x, 0, beacon.z);
-
-    const baseIsland = new THREE.Mesh(
-      new THREE.CylinderGeometry(6.8, 9.2, 2.4, 16),
-      new THREE.MeshStandardMaterial({
-        color:
-          beacon.silhouetteType === 'volcano'
-            ? '#3D2926'
-            : beacon.silhouetteType === 'ice'
-            ? '#CFE4F2'
-            : beacon.silhouetteType === 'swamp'
-            ? '#3B5E4F'
-            : beacon.silhouetteType === 'forsaken'
-            ? '#5C4435'
-            : '#6E7A69',
-        roughness: 0.86,
-      })
-    );
-    baseIsland.position.y = -0.1;
-    harborGroup.add(baseIsland);
-
-    // Mini harbor pier pointing toward sea center
-    const miniPier = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.22, 4.6), woodMat);
-    miniPier.position.set(0, 0.82, 6.2);
-    const pierBeacon = new THREE.Mesh(
-      new THREE.SphereGeometry(0.4, 8, 8),
-      new THREE.MeshStandardMaterial({ color: beacon.accentHex, emissive: beacon.accentHex, emissiveIntensity: 1.5 })
-    );
-    pierBeacon.position.set(0, 1.65, 8.2);
-    harborGroup.add(miniPier, pierBeacon);
-
-    const landmark = new THREE.Mesh(
-      beacon.silhouetteType === 'ancient' || beacon.silhouetteType === 'statue'
-        ? new THREE.OctahedronGeometry(2.8, 0)
-        : beacon.silhouetteType === 'volcano' || beacon.silhouetteType === 'depths'
-        ? new THREE.ConeGeometry(3.2, 6.8, 6)
-        : new THREE.CylinderGeometry(1.5, 2.2, 5.4, 8),
-      new THREE.MeshStandardMaterial({
-        color: beacon.accentHex,
-        emissive: beacon.accentHex,
-        emissiveIntensity: 0.42,
-        roughness: 0.35,
-      })
-    );
-    landmark.position.y = 3.2;
-    harborGroup.add(landmark);
-
-    const harborLabel = createNameplateSprite(beacon.name, 'Labuhkan dgn Kapal [E]', beacon.accentHex);
-    harborLabel.scale.set(7.2, 2.15, 1);
-    harborLabel.position.set(0, 8.2, 0);
-    harborGroup.add(harborLabel);
-
-    group.add(harborGroup);
-  }
-
-  // Soaring Seagulls overhead (12 InstancedMesh gulls)
-  const gullGeo = new THREE.BoxGeometry(1.1, 0.06, 0.24);
+  // Instanced Soaring Seagulls across the Archipelago (22 gulls)
+  const gullGeo = new THREE.BoxGeometry(1.15, 0.06, 0.25);
   const gullMat = new THREE.MeshStandardMaterial({ color: '#F8FAFC', roughness: 0.65 });
-  const gullCount = 12;
+  const gullCount = 22;
   const gullInst = new THREE.InstancedMesh(gullGeo, gullMat, gullCount);
   gullInst.frustumCulled = false;
-  const gullData = Array.from({ length: gullCount }, (_, i) => ({
-    radius: 18 + (i % 4) * 9,
-    speed: 0.2 + (i % 3) * 0.06,
-    height: 13 + (i % 4) * 2.5,
-    phase: (i / gullCount) * Math.PI * 2,
-  }));
+  const gullData = Array.from({ length: gullCount }, (_, i) => {
+    const home = FISCH_ISLANDS[i % FISCH_ISLANDS.length].worldCoords;
+    return {
+      cx: home.x,
+      cz: home.z,
+      radius: 14 + (i % 3) * 7,
+      speed: 0.22 + (i % 4) * 0.05,
+      height: 14 + (i % 4) * 2.5,
+      phase: (i / gullCount) * Math.PI * 2,
+    };
+  });
   group.add(gullInst);
 
-  // Instanced Underwater Swimming Fish School (34 instances)
+  // Instanced Underwater Swimming Fish Schools distributed around island harbors (55 fish)
   const fishBodyGeo = new THREE.ConeGeometry(0.24, 0.9, 6);
   fishBodyGeo.rotateX(Math.PI / 2);
-  const fishMat = new THREE.MeshStandardMaterial({
-    color: '#82AAA1',
-    roughness: 0.3,
-    metalness: 0.25,
-  });
-  const fishCount = 34;
+  const fishMat = new THREE.MeshStandardMaterial({ color: '#82AAA1', roughness: 0.3, metalness: 0.25 });
+  const fishCount = 55;
   const fishSchoolMesh = new THREE.InstancedMesh(fishBodyGeo, fishMat, fishCount);
   fishSchoolMesh.frustumCulled = false;
-  const fishData = Array.from({ length: fishCount }, (_, i) => ({
-    radius: 9.5 + (i % 5) * 3.8,
-    speed: (0.26 + (i % 4) * 0.1) * (i % 2 === 0 ? 1 : -1),
-    phase: (i / fishCount) * Math.PI * 2,
-    depth: -0.45 - (i % 3) * 0.35,
-    scale: 0.72 + (i % 4) * 0.22,
-  }));
   const schoolColors = ['#5EC48B', '#63B3ED', '#F6C453', '#82AAA1', '#E87EA1'];
+  const fishData = Array.from({ length: fishCount }, (_, i) => {
+    const center = dynamicFishCenters[i % dynamicFishCenters.length];
+    return {
+      cx: center.x,
+      cz: center.z,
+      radius: center.radius + (i % 4) * 2.2,
+      speed: (0.28 + (i % 3) * 0.1) * (i % 2 === 0 ? 1 : -1),
+      phase: (i / fishCount) * Math.PI * 2,
+      depth: -0.42 - (i % 3) * 0.32,
+      scale: 0.72 + (i % 4) * 0.2,
+    };
+  });
   for (let i = 0; i < fishCount; i += 1) {
     fishSchoolMesh.setColorAt(i, new THREE.Color(schoolColors[i % schoolColors.length]));
   }
   if (fishSchoolMesh.instanceColor) fishSchoolMesh.instanceColor.needsUpdate = true;
   group.add(fishSchoolMesh);
 
-  // Starfield for Night & Aurora
-  const starCount = isSoftwareGl ? 140 : 280;
+  // Starfield Dome for Night & Aurora
+  const starCount = isSoftwareGl ? 160 : 320;
   const starPositions = new Float32Array(starCount * 3);
   for (let i = 0; i < starCount; i += 1) {
     const theta = ((i * 137.5) % 360) * (Math.PI / 180);
-    const phi = 0.18 + ((i * 29) % 75) * 0.012;
-    const rad = 115;
+    const phi = 0.14 + ((i * 29) % 75) * 0.012;
+    const rad = 210;
     starPositions[i * 3] = Math.cos(theta) * Math.cos(phi) * rad;
-    starPositions[i * 3 + 1] = Math.sin(phi) * rad + 8;
+    starPositions[i * 3 + 1] = Math.sin(phi) * rad + 12;
     starPositions[i * 3 + 2] = Math.sin(theta) * Math.cos(phi) * rad;
   }
   const starGeo = new THREE.BufferGeometry();
   starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
   const starMat = new THREE.PointsMaterial({
     color: '#F8FAFC',
-    size: 0.85,
+    size: 1.3,
     transparent: true,
     opacity: isDarkMode ? 0.85 : 0.0,
     depthWrite: false,
@@ -1620,12 +1977,12 @@ export function buildIslandEnvironment(
   const starPoints = new THREE.Points(starGeo, starMat);
   group.add(starPoints);
 
-  // Aurora Borealis Curved Ribbon
-  const auroraGeo = new THREE.PlaneGeometry(98, 14, 24, 4);
+  // Aurora Borealis Curved Sky Ribbon spanning across Archipelago Sky
+  const auroraGeo = new THREE.PlaneGeometry(190, 20, 28, 4);
   const posAttr = auroraGeo.attributes.position;
   for (let i = 0; i < posAttr.count; i += 1) {
     const px = posAttr.getX(i);
-    posAttr.setZ(i, Math.sin(px * 0.08) * 10.5);
+    posAttr.setZ(i, Math.sin(px * 0.045) * 18);
   }
   auroraGeo.computeVertexNormals();
   const auroraMat = new THREE.MeshBasicMaterial({
@@ -1636,14 +1993,14 @@ export function buildIslandEnvironment(
     depthWrite: false,
   });
   const auroraRibbon = new THREE.Mesh(auroraGeo, auroraMat);
-  auroraRibbon.position.set(0, 30, -45);
-  auroraRibbon.rotation.x = 0.18;
+  auroraRibbon.position.set(0, 42, -95);
+  auroraRibbon.rotation.x = 0.16;
   group.add(auroraRibbon);
 
-  // Build All 7 Island-Specific Interactive 3D NPCs
-  const islandNpcSpawns = getIslandNpcSpawns(island.id);
-  const npcActors = islandNpcSpawns.map((spawn) => {
-    const actor = createNpcActor(spawn, island.id, isDarkMode);
+  // Spawn ALL 77 Island-Specific Interactive 3D NPCs across All 11 Islands!
+  const allSpawns = getAllWorldNpcSpawns();
+  const npcActors = allSpawns.map((spawn) => {
+    const actor = createNpcActorShared(spawn, isDarkMode, sharedNpcRes);
     group.add(actor.group);
     return actor;
   });
@@ -1663,8 +2020,8 @@ export function buildIslandEnvironment(
       for (let i = 0; i < fishCount; i += 1) {
         const fd = fishData[i];
         const ang = fd.phase + timeSec * fd.speed * 0.25;
-        const fx = Math.cos(ang) * fd.radius * 1.25;
-        const fz = 16.5 + Math.sin(ang) * fd.radius * 0.75;
+        const fx = fd.cx + Math.cos(ang) * fd.radius * 1.15;
+        const fz = fd.cz + Math.sin(ang) * fd.radius * 0.85;
         fishDummy.position.set(fx, fd.depth + Math.sin(timeSec * 2 + i) * 0.08, fz);
         fishDummy.rotation.set(0, -ang + (fd.speed > 0 ? 0 : Math.PI), 0);
         fishDummy.scale.setScalar(fd.scale);
@@ -1677,9 +2034,9 @@ export function buildIslandEnvironment(
         const gd = gullData[i];
         const ang = gd.phase + timeSec * gd.speed;
         fishDummy.position.set(
-          Math.cos(ang) * gd.radius,
+          gd.cx + Math.cos(ang) * gd.radius,
           gd.height + Math.sin(timeSec * 3.8 + i) * 0.45,
-          Math.sin(ang) * gd.radius
+          gd.cz + Math.sin(ang) * gd.radius
         );
         fishDummy.rotation.set(Math.sin(timeSec * 6.5 + i) * 0.25, -ang, 0);
         fishDummy.scale.setScalar(1);
@@ -1692,9 +2049,18 @@ export function buildIslandEnvironment(
         if (actor.crystalMesh) {
           actor.crystalMesh.rotation.y = timeSec * 1.25;
           actor.crystalMesh.position.y =
-            (actor.spawn.role === 'altar' ? 2.65 : actor.spawn.role === 'merlin' ? 1.96 : 1.32) +
+            (actor.spawn.role === 'altar' ? 2.55 : actor.spawn.role === 'merlin' ? 1.94 : 1.3) +
             Math.sin(timeSec * 2.4) * 0.09;
         }
+      }
+
+      for (const c of spinningCrystals) {
+        c.mesh.rotation.y = timeSec * c.speed;
+        c.mesh.position.y = c.baseY + Math.sin(timeSec * 1.8) * 0.14;
+      }
+
+      for (const rot of lighthouseRotators) {
+        rot.rotation.y = timeSec * 0.75;
       }
 
       starMat.opacity = THREE.MathUtils.lerp(starMat.opacity, isNight || auroraActive ? 0.85 : 0, 0.06);
@@ -1708,12 +2074,20 @@ export function buildIslandEnvironment(
       for (const l of lanternLights) {
         l.intensity = THREE.MathUtils.lerp(l.intensity, targetLantern, 0.08);
       }
-      for (const m of lanternGlassMats) {
-        m.emissiveIntensity = isNight ? 1.6 : 0.35;
-      }
+      sharedLanternGlassMat.emissiveIntensity = isNight ? 1.6 : 0.38;
     },
     dispose: () => {
       disposeObject3DTree(group);
     },
   };
+}
+
+// Backward-compatible alias for any callers importing buildIslandEnvironment
+export function buildIslandEnvironment(
+  _island: FischIsland,
+  isDarkMode: boolean,
+  maxAnisotropy: number,
+  isSoftwareGl: boolean
+): IslandEnvironmentHandle {
+  return buildArchipelagoEnvironment(isDarkMode, maxAnisotropy, isSoftwareGl);
 }

@@ -1,16 +1,25 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { FISCH_ISLANDS } from './fischData.ts';
 import {
   clampPlayerPosition,
+  clampPlayerWorldPosition,
   computeBobberTargetPosition,
-  findNearestHarborBeacon,
+  findActiveIslandAt,
+  findNearestDisembarkPoint,
   findNearestNpc,
+  FISCH_ISLAND_LAYOUTS,
   FISCH_NPC_SPAWNS,
+  getAllWorldNpcSpawns,
   getGroundHeightAt,
+  getGroundHeightAtWorld,
+  getIslandDockSpawn,
   getIslandNpcSpawns,
-  getNeighborHarborBeacons,
   isOnWoodenPier,
-  resolveBoatPosition,
+  isWalkablePosition,
+  isWalkableWorldPosition,
+  islandLocalToWorld,
+  resolveBoatWorldPosition,
   waterHeightAt,
 } from './fisch3dWorld.ts';
 
@@ -26,25 +35,78 @@ test('waterHeightAt produces smooth bounded wave displacement', () => {
   }
 });
 
-test('wooden pier and enlarged island ground height are solid and aligned', () => {
-  assert.equal(isOnWoodenPier(0, 10), true);
-  assert.equal(isOnWoodenPier(6.0, 14.8), true);
-  assert.equal(isOnWoodenPier(0, 19.0), false);
+test('all 11 islands have distinct layouts, dock angles, lobe geometry, and walkable NPC placements', () => {
+  assert.equal(FISCH_ISLANDS.length, 11);
+  const dockAngles = new Set<number>();
 
-  assert.equal(getGroundHeightAt('moosewood', 0, 10), 0.96);
-  assert.ok(getGroundHeightAt('moosewood', 0, -9.5) >= 0.74);
-  assert.ok(getGroundHeightAt('roslit_volcano', 0, -15) > getGroundHeightAt('moosewood', 0, 10));
+  for (const island of FISCH_ISLANDS) {
+    const layout = FISCH_ISLAND_LAYOUTS[island.id];
+    assert.ok(layout, `Missing layout for ${island.id}`);
+    assert.ok(layout.lobes.length >= 2, `${island.id} should have multi-lobe terrain`);
+    dockAngles.add(layout.dockAngle);
+
+    const dockSpawn = getIslandDockSpawn(island.id);
+    assert.equal(
+      isWalkableWorldPosition(dockSpawn.px, dockSpawn.pz),
+      true,
+      `Dock spawn for ${island.id} must be walkable`
+    );
+
+    const npcs = getIslandNpcSpawns(island.id);
+    assert.equal(npcs.length, 7, `${island.id} should spawn 7 NPCs`);
+    for (const npc of npcs) {
+      assert.equal(
+        isWalkableWorldPosition(npc.x, npc.z),
+        true,
+        `NPC ${npc.role} on ${island.id} at (${npc.x.toFixed(2)}, ${npc.z.toFixed(2)}) must stand on walkable terrain`
+      );
+    }
+  }
+
+  assert.ok(dockAngles.size >= 8, 'Islands should have varied dock orientations');
+  assert.equal(getAllWorldNpcSpawns().length, 77);
 });
 
-test('clampPlayerPosition keeps avatar on enlarged pier or island and slides cleanly along edges', () => {
+test('distinct island bridges and lagoons work accurately in local and world space', () => {
+  // Moosewood pier and multi-lobe heights
+  assert.equal(isOnWoodenPier(0, 10), true);
+  assert.equal(isOnWoodenPier(5.4, 14.2), true);
+  assert.equal(isOnWoodenPier(0, 19.0), false);
+  assert.equal(getGroundHeightAt('moosewood', 0, 10), 0.96);
+  assert.ok(getGroundHeightAt('moosewood', 0, -9.5) >= 0.74);
+
+  // Roslit Bay horseshoe lagoon: water in the inner lagoon, walkable across the bamboo bridge!
+  assert.equal(isWalkablePosition(0, -6.2, 'roslit_bay'), false);
+  assert.equal(isWalkablePosition(0, -9.2, 'roslit_bay'), true);
+  assert.ok(getGroundHeightAt('roslit_bay', 0, -9.2) > 1.4);
+
+  // Mushgrove swamp boardwalk connects center and outer mud islets
+  assert.equal(isWalkablePosition(-4.8, -5.6, 'mushgrove'), true);
+  assert.equal(isWalkablePosition(-9.6, -5.6, 'mushgrove'), true);
+
+  // Volcano caldera rim is significantly higher than Moosewood pier
+  assert.ok(getGroundHeightAt('roslit_volcano', 0, -14.2) > getGroundHeightAt('moosewood', 0, 10));
+});
+
+test('clampPlayerPosition and clampPlayerWorldPosition keep avatar safely on land/pier/bridges', () => {
   const onPier = clampPlayerPosition('moosewood', 0, 8, 0.5, 11);
   assert.equal(onPier.x, 0.5);
   assert.equal(onPier.z, 11);
 
-  // Attempting to walk straight into deep water past T-dock edge (z = 16.6) clamps Z cleanly
-  const edgeClamp = clampPlayerPosition('moosewood', 0, 16.4, 0.4, 21.0);
-  assert.equal(edgeClamp.z, 16.4);
+  const edgeClamp = clampPlayerPosition('moosewood', 0, 14.5, 0.4, 21.0);
+  assert.equal(edgeClamp.z, 14.5);
   assert.equal(edgeClamp.x, 0.4);
+
+  // World-space movement on Sunstone Island (rotated + elevated steps)
+  const sunstoneSpawn = getIslandDockSpawn('sunstone');
+  const clamped = clampPlayerWorldPosition(
+    sunstoneSpawn.px,
+    sunstoneSpawn.pz,
+    sunstoneSpawn.px + 0.3,
+    sunstoneSpawn.pz + 0.2
+  );
+  assert.equal(isWalkableWorldPosition(clamped.x, clamped.z), true);
+  assert.ok(getGroundHeightAtWorld(clamped.x, clamped.z) > 0.9);
 });
 
 test('getIslandNpcSpawns assigns unique Merchant and Appraiser personas per island and findNearestNpc detects them', () => {
@@ -69,38 +131,44 @@ test('getIslandNpcSpawns assigns unique Merchant and Appraiser personas per isla
   assert.equal(none, null);
 });
 
-test('computeBobberTargetPosition strictly projects bobber along player yaw into water', () => {
-  // Facing back (-Z, yaw = PI) casts strictly behind player across enlarged island into open water (-Z)
+test('computeBobberTargetPosition strictly projects bobber along player yaw into open water', () => {
   const backFacing = computeBobberTargetPosition(0, 5, Math.PI, 0.8);
-  assert.ok(backFacing.z < -20, `Expected z < -20 when facing PI, got ${backFacing.z}`);
+  assert.ok(backFacing.z < -18, `Expected z < -18 when facing PI, got ${backFacing.z}`);
   assert.ok(Math.abs(backFacing.x) < 0.01);
+  assert.equal(isWalkableWorldPosition(backFacing.x, backFacing.z), false);
 
-  // Facing right (+X, yaw = PI / 2) casts strictly to +X
   const sideFacing = computeBobberTargetPosition(0, 14, Math.PI / 2, 0.7);
   assert.ok(sideFacing.x > 10);
   assert.ok(Math.abs(sideFacing.z - 14) < 0.01);
+  assert.equal(isWalkableWorldPosition(sideFacing.x, sideFacing.z), false);
 
-  // Facing ocean (+Z, yaw = 0) projects cleanly ahead
   const seaFacing = computeBobberTargetPosition(0, 15, 0, 0.86);
   assert.ok(seaFacing.z > 20);
+  assert.equal(isWalkableWorldPosition(seaFacing.x, seaFacing.z), false);
 });
 
-test('getNeighborHarborBeacons provides 10 neighbor islands and resolveBoatPosition/findNearestHarborBeacon work dynamically', () => {
-  const neighborsFromMoosewood = getNeighborHarborBeacons('moosewood');
-  assert.equal(neighborsFromMoosewood.length, 10);
-
-  const blockedPier = resolveBoatPosition(-9.6, 15.0, 0, 15.0, 'moosewood');
+test('seamless archipelago sailing: boat collision, disembarking at any island pier, and active island detection', () => {
+  // Sailing into Moosewood pier is blocked safely in world coordinates
+  const blockedPier = resolveBoatWorldPosition(-9.6, 15.0, 0, 15.0);
   assert.ok(blockedPier.x !== 0 || blockedPier.z >= 15.0);
 
-  const forsaken = findNearestHarborBeacon(-48, 16, 'moosewood', 17.5);
-  assert.ok(forsaken);
-  assert.equal(forsaken.islandId, 'forsaken_shores');
+  // Boat moored near Roslit Bay pier can disembark directly onto Roslit Bay without loading screen
+  const roslitSpawn = getIslandDockSpawn('roslit_bay');
+  const disembarkRoslit = findNearestDisembarkPoint(roslitSpawn.bx, roslitSpawn.bz, 11.5);
+  assert.ok(disembarkRoslit);
+  assert.equal(disembarkRoslit.islandId, 'roslit_bay');
+  assert.equal(isWalkableWorldPosition(disembarkRoslit.x, disembarkRoslit.z), true);
 
-  const noHarborAtOrigin = findNearestHarborBeacon(0, 16, 'moosewood', 17.5);
-  assert.equal(noHarborAtOrigin, null);
+  // Mid-ocean has no disembark point
+  const openOceanDisembark = findNearestDisembarkPoint(0, 28, 11.5);
+  assert.equal(openOceanDisembark, null);
 
-  // From Roslit Bay (worldCoords 0, 52), Moosewood sits at relative (0, -52)
-  const returnToMoosewood = findNearestHarborBeacon(0, -52, 'roslit_bay', 17.5);
-  assert.ok(returnToMoosewood);
-  assert.equal(returnToMoosewood.islandId, 'moosewood');
+  // Active island detection switches accurately by world coordinates
+  const volcanoSpawn = getIslandDockSpawn('roslit_volcano');
+  const activeVolcano = findActiveIslandAt(volcanoSpawn.px, volcanoSpawn.pz);
+  assert.equal(activeVolcano?.id, 'roslit_volcano');
+
+  const depthsPierWorld = islandLocalToWorld('the_depths', 0, 10);
+  const activeDepths = findActiveIslandAt(depthsPierWorld.x, depthsPierWorld.z);
+  assert.equal(activeDepths?.id, 'the_depths');
 });

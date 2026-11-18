@@ -7,6 +7,7 @@ import {
   Compass,
   Fish,
   Lock,
+  MapPin,
   Navigation,
   PackageOpen,
   Search,
@@ -115,6 +116,8 @@ export const FischGame: React.FC<FischGameProps> = ({
   const [save, setSave] = useState<FischSaveState>(() => loadFischSave());
   const [activePopup, setActivePopup] = useState<FischPopupState>(null);
   const [compassTargetIslandId, setCompassTargetIslandId] = useState<string | null>(null);
+  const [teleportRequest, setTeleportRequest] = useState<{ islandId: string; id: number } | null>(null);
+  const teleportSeqRef = useRef(0);
   const [phase, setPhase] = useState<FischPhase>('idle');
 
   // Dynamic World Environment
@@ -651,16 +654,34 @@ export const FischGame: React.FC<FischGameProps> = ({
     setActivePopup({ kind: 'npc', npc });
   }, []);
 
-  // Harbor Boat Arrival (Boat-only island travel, no level restrictions)
-  const handleSailToOutpost = useCallback(
+  // Seamless Open-World Archipelago Discovery & Direct Dock Jump
+  const handleEnterIsland = useCallback(
+    (islandId: string) => {
+      const target = FISCH_ISLANDS.find((i) => i.id === islandId);
+      if (!target) return;
+      setSave((prev) => {
+        if (prev.currentIslandId === target.id) return prev;
+        return { ...prev, currentIslandId: target.id };
+      });
+      setCompassTargetIslandId((prev) => (prev === target.id ? null : prev));
+      if (target.id !== save.currentIslandId) {
+        soundEffects.playBubblePop();
+        showTempBanner(`Memasuki perairan ${target.name}`);
+      }
+    },
+    [save.currentIslandId, showTempBanner]
+  );
+
+  const handleGoDirectlyToIsland = useCallback(
     (islandId: string) => {
       const target = FISCH_ISLANDS.find((i) => i.id === islandId);
       if (!target) return;
       soundEffects.playBubblePop();
       setSave((prev) => ({ ...prev, currentIslandId: target.id }));
       setCompassTargetIslandId((prev) => (prev === target.id ? null : prev));
+      setTeleportRequest({ islandId: target.id, id: ++teleportSeqRef.current });
       setActivePopup(null);
-      showTempBanner(`Kapal berlabuh di ${target.name}!`);
+      showTempBanner(`Berada di dermaga ${target.name}!`);
     },
     [showTempBanner]
   );
@@ -1167,12 +1188,13 @@ export const FischGame: React.FC<FischGameProps> = ({
         shakeTarget={shakeTarget}
         lastCatchVisual={lastCatchVisual}
         compassTargetIslandId={compassTargetIslandId}
+        teleportRequest={teleportRequest}
         onStepFishing={stepFishing}
         onBeginCastOrReel={beginCharge}
         onReleaseInput={releaseInput}
         onTriggerShake={triggerShake}
         onInteractNpc={handleInteractNpc}
-        onSailToOutpost={handleSailToOutpost}
+        onEnterIsland={handleEnterIsland}
         isFullscreen={isFullscreen}
         onToggleFullscreen={toggleFullscreen}
         statusBanner={statusBanner}
@@ -1372,7 +1394,7 @@ export const FischGame: React.FC<FischGameProps> = ({
                         <span>Peta Laut &amp; Navigasi Kepulauan</span>
                       </h3>
                       <p className="text-xs text-[#425B66] dark:text-[#98ACB5]">
-                        Semua 11 pulau terbuka! Pasang target kompas di peta, lalu naik kapal di dermaga <strong>[B]</strong> untuk berlayar.
+                        Semua 11 pulau sudah termuat penuh di dunia 3D! Langsung pindah ke dermaga pulau atau pasang arah kompas untuk berlayar bebas.
                       </p>
                     </>
                   )}
@@ -2345,7 +2367,7 @@ export const FischGame: React.FC<FischGameProps> = ({
                   </div>
                 )}
 
-                {/* CORNER HUD POPUP 3: PETA LAUT & KOMPAS NAVIGASI (BOAT-ONLY SAILING) */}
+                {/* CORNER HUD POPUP 3: PETA LAUT & NAVIGASI KEPULAUAN (OPEN WORLD + DIRECT DOCK) */}
                 {activePopup.kind === 'map' && (
                   <div className="space-y-4">
                     {/* Interactive 2D Archipelago Sea Chart */}
@@ -2364,10 +2386,10 @@ export const FischGame: React.FC<FischGameProps> = ({
                       {compassTargetIslandId && (() => {
                         const target = FISCH_ISLANDS.find((i) => i.id === compassTargetIslandId);
                         if (!target || target.id === currentIsland.id) return null;
-                        const x1 = ((currentIsland.worldCoords.x + 108) / 216) * 100;
-                        const y1 = ((currentIsland.worldCoords.z + 84) / 168) * 100;
-                        const x2 = ((target.worldCoords.x + 108) / 216) * 100;
-                        const y2 = ((target.worldCoords.z + 84) / 168) * 100;
+                        const x1 = ((currentIsland.worldCoords.x + 144) / 288) * 100;
+                        const y1 = ((currentIsland.worldCoords.z + 96) / 208) * 100;
+                        const x2 = ((target.worldCoords.x + 144) / 288) * 100;
+                        const y2 = ((target.worldCoords.z + 96) / 208) * 100;
                         return (
                           <svg
                             viewBox="0 0 100 100"
@@ -2388,8 +2410,8 @@ export const FischGame: React.FC<FischGameProps> = ({
                       })()}
 
                       {FISCH_ISLANDS.map((isl) => {
-                        const leftPct = ((isl.worldCoords.x + 108) / 216) * 100;
-                        const topPct = ((isl.worldCoords.z + 84) / 168) * 100;
+                        const leftPct = ((isl.worldCoords.x + 144) / 288) * 100;
+                        const topPct = ((isl.worldCoords.z + 96) / 208) * 100;
                         const isHere = isl.id === currentIsland.id;
                         const isTarget = isl.id === compassTargetIslandId;
 
@@ -2397,11 +2419,8 @@ export const FischGame: React.FC<FischGameProps> = ({
                           <button
                             key={isl.id}
                             type="button"
-                            onClick={() => {
-                              if (!isHere) {
-                                setCompassTargetIslandId((prev) => (prev === isl.id ? null : isl.id));
-                              }
-                            }}
+                            title={isHere ? `${isl.name} (Lokasi Saat Ini)` : `Pergi Langsung ke ${isl.name}`}
+                            onClick={() => handleGoDirectlyToIsland(isl.id)}
                             style={{
                               left: `${leftPct}%`,
                               top: `${topPct}%`,
@@ -2437,7 +2456,7 @@ export const FischGame: React.FC<FischGameProps> = ({
                       })}
                     </div>
 
-                    {/* Island Directory Cards (Compass Pinning Only, No Instant Teleport) */}
+                    {/* Island Directory Cards (Direct Dock Jump + Live 3D Compass) */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       {FISCH_ISLANDS.map((isl) => {
                         const isHere = isl.id === currentIsland.id;
@@ -2488,24 +2507,33 @@ export const FischGame: React.FC<FischGameProps> = ({
                                 Lokasi Saat Ini
                               </div>
                             ) : (
-                              <button
-                                onClick={() => {
-                                  soundEffects.playBubblePop();
-                                  setCompassTargetIslandId((prev) =>
-                                    prev === isl.id ? null : isl.id
-                                  );
-                                }}
-                                className={`w-full py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer ${
-                                  isTarget
-                                    ? 'bg-[#876B3A] text-white'
-                                    : 'bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1]'
-                                }`}
-                              >
-                                <Navigation className="w-3.5 h-3.5" />
-                                <span>
-                                  {isTarget ? 'Hapus Arah Kompas' : 'Pasang Arah Kompas'}
-                                </span>
-                              </button>
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleGoDirectlyToIsland(isl.id)}
+                                  className="py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 cursor-pointer bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1]"
+                                >
+                                  <MapPin className="w-3.5 h-3.5 shrink-0" />
+                                  <span>Pergi Langsung</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    soundEffects.playBubblePop();
+                                    setCompassTargetIslandId((prev) =>
+                                      prev === isl.id ? null : isl.id
+                                    );
+                                  }}
+                                  className={`py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 cursor-pointer ${
+                                    isTarget
+                                      ? 'bg-[#876B3A] text-white'
+                                      : 'bg-[#0B1E27]/10 hover:bg-[#0B1E27]/18 dark:bg-[#EDEBE3]/10 dark:hover:bg-[#EDEBE3]/20 text-[#0B1E27] dark:text-[#EDEBE3]'
+                                  }`}
+                                >
+                                  <Navigation className="w-3.5 h-3.5 shrink-0" />
+                                  <span>{isTarget ? 'Hapus' : 'Kompas'}</span>
+                                </button>
+                              </div>
                             )}
                           </div>
                         );
