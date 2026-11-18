@@ -37,6 +37,7 @@ import { soundEffects } from '../utils/soundEffects';
 import { OceanEcosystemBackdrop } from '../components/OceanEcosystemBackdrop';
 import { renderEnemySprite, renderHazardSprite, renderCompanionSprite } from '../components/GameSprites';
 import { FeedingFrenzyGame } from '../components/FeedingFrenzyGame';
+import { FischGame } from '../components/FischGame';
 import { ThemeMode } from '../hooks/useTheme';
 
 interface GameViewProps {
@@ -186,7 +187,7 @@ const ITEM_DEFINITIONS = [
 ];
 
 export const GameView: React.FC<GameViewProps> = ({ onAwardXp, onRecordGame, theme = 'dark' }) => {
-  const [selectedArcadeMode, setSelectedArcadeMode] = useState<'frenzy' | 'cleanup'>('frenzy');
+  const [selectedArcadeMode, setSelectedArcadeMode] = useState<'frenzy' | 'cleanup' | 'fisch'>('frenzy');
   const [currentLevelIndex, setCurrentLevelIndex] = useState(0);
   const [gameState, setGameState] = useState<'menu' | 'playing' | 'gameover' | 'levelclear'>('menu');
   const [battlePhase, setBattlePhase] = useState<'clearing' | 'boss'>('clearing');
@@ -1066,7 +1067,7 @@ export const GameView: React.FC<GameViewProps> = ({ onAwardXp, onRecordGame, the
 
   const accuracyPercent = calculateGameAccuracy(correctHits, wrongHits);
 
-  const handleSwitchArcadeMode = (nextMode: 'frenzy' | 'cleanup') => {
+  const handleSwitchArcadeMode = (nextMode: 'frenzy' | 'cleanup' | 'fisch') => {
     if (nextMode === selectedArcadeMode) return;
     soundEffects.playBubblePop();
     clearAllTimers();
@@ -1077,29 +1078,35 @@ export const GameView: React.FC<GameViewProps> = ({ onAwardXp, onRecordGame, the
   return (
     <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] pt-28 pb-20 px-4 sm:px-6 lg:px-8 transition-colors duration-300">
       <div className="max-w-6xl mx-auto space-y-6">
-        {/* Clean Editorial Header + Dual-Game Hub Switcher */}
+        {/* Clean Editorial Header + Tri-Game Hub Switcher */}
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 pb-5 border-b border-[var(--border-hairline)]">
           <div className="space-y-1">
             <span className="text-xs uppercase tracking-widest text-[var(--accent-teal)] font-semibold block">
               {selectedArcadeMode === 'frenzy'
                 ? 'Arkade Ekologi Laut · Feeding Frenzy'
+                : selectedArcadeMode === 'fisch'
+                ? 'Simulasi RPG Pancing · Terinspirasi Fisch'
                 : `Mini-Game Konservasi · Level ${currentLevel.level}`}
             </span>
             <h1 className="font-display text-3xl sm:text-4xl text-[var(--text-primary)]">
               {selectedArcadeMode === 'frenzy'
                 ? 'Feeding Frenzy: Rantai Samudra'
+                : selectedArcadeMode === 'fisch'
+                ? 'Fisch: Ekspedisi Pancing Samudra'
                 : 'Ocean Cleanup: Penjaga Kedalaman'}
             </h1>
             <p className="text-xs sm:text-sm text-[var(--text-secondary)]">
               {selectedArcadeMode === 'frenzy'
                 ? 'Makan ikan lebih kecil untuk berevolusi menjadi predator puncak, hindari pemangsa besar, dan raih mutiara dasar laut.'
+                : selectedArcadeMode === 'fisch'
+                ? 'Lempar kail, Shake, kendalikan bar Reel, lengkapi Bestiary 230+ spesies, upgrade Rod & Enchant, dan kumpulkan Credit (C$).'
                 : `Serok sampah hanyut, tangkis serangan musuh demi jaga HP, dan bertarung bersama ${currentLevel.companion.name} melawan bos level!`}
             </p>
           </div>
 
-          {/* Segmented Dual-Mode Selector */}
+          {/* Segmented Tri-Mode Selector */}
           <div
-            className="inline-flex items-center gap-1 p-1 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-hairline)] shrink-0 self-start lg:self-auto"
+            className="inline-flex flex-wrap items-center gap-1 p-1 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-hairline)] shrink-0 self-start lg:self-auto"
             role="tablist"
             aria-label="Pilih Mode Permainan"
           >
@@ -1115,6 +1122,19 @@ export const GameView: React.FC<GameViewProps> = ({ onAwardXp, onRecordGame, the
             >
               <Fish className="w-3.5 h-3.5" />
               <span>Feeding Frenzy</span>
+            </button>
+            <button
+              role="tab"
+              aria-selected={selectedArcadeMode === 'fisch'}
+              onClick={() => handleSwitchArcadeMode('fisch')}
+              className={`px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap ${
+                selectedArcadeMode === 'fisch'
+                  ? 'bg-[#367D7B] text-[#EDEBE3] shadow-sm'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              <Anchor className="w-3.5 h-3.5" />
+              <span>Fisch Samudra</span>
             </button>
             <button
               role="tab"
@@ -1134,6 +1154,8 @@ export const GameView: React.FC<GameViewProps> = ({ onAwardXp, onRecordGame, the
 
         {selectedArcadeMode === 'frenzy' ? (
           <FeedingFrenzyGame onAwardXp={onAwardXp} onRecordGame={onRecordGame} theme={theme} />
+        ) : selectedArcadeMode === 'fisch' ? (
+          <FischGame onAwardXp={onAwardXp} onRecordGame={onRecordGame} theme={theme} />
         ) : (
         /* BORDERLESS AQUARIUM STAGE WITH SKIMMER NET CURSOR */
         <div
