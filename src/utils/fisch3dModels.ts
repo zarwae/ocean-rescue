@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { FischIsland, FischRod, FischSpecies } from './fischData';
+import { FischBoat, FischIsland, FischRod, FischSpecies } from './fischData';
 import {
   createGroundStoneTexture,
   createNameplateSprite,
@@ -7,6 +7,7 @@ import {
   createRobloxFaceTexture,
   createWoodPlankTexture,
   FISCH_NPC_SPAWNS,
+  FISCH_OUTPOST_BEACONS,
   FischNpcSpawn,
   getGroundHeightAt,
 } from './fisch3dWorld';
@@ -37,6 +38,14 @@ export interface NpcActorHandle {
   ringMat: THREE.MeshBasicMaterial;
   crystalMesh?: THREE.Mesh;
   baseY: number;
+}
+
+export interface FischBoat3DHandle {
+  root: THREE.Group;
+  hullGroup: THREE.Group;
+  seatAnchor: THREE.Object3D;
+  wakeAnchor: THREE.Object3D;
+  dispose: () => void;
 }
 
 export interface IslandEnvironmentHandle {
@@ -318,19 +327,23 @@ export function animateRobloxAngler(
     timeSec: number;
     moveSpeedRatio: number;
     isGrounded: boolean;
+    isSeated?: boolean;
     phase: 'idle' | 'charging' | 'casting' | 'waiting' | 'biting' | 'reeling';
     castPower: number;
     celebratingTimer: number;
     reelOnTarget: boolean;
   }
 ): void {
-  const { timeSec, moveSpeedRatio, isGrounded, phase, castPower, celebratingTimer, reelOnTarget } = params;
+  const { timeSec, moveSpeedRatio, isGrounded, isSeated = false, phase, castPower, celebratingTimer, reelOnTarget } = params;
 
-  const isWalking = moveSpeedRatio > 0.06 && isGrounded;
+  const isWalking = !isSeated && moveSpeedRatio > 0.06 && isGrounded;
   const walkSwing = isWalking ? Math.sin(timeSec * 10.5) * 0.65 * moveSpeedRatio : 0;
 
   // Legs
-  if (!isGrounded) {
+  if (isSeated) {
+    rig.leftLegPivot.rotation.x = -1.32;
+    rig.rightLegPivot.rotation.x = -1.32;
+  } else if (!isGrounded) {
     rig.leftLegPivot.rotation.x = 0.35;
     rig.rightLegPivot.rotation.x = -0.25;
   } else {
@@ -339,11 +352,15 @@ export function animateRobloxAngler(
   }
 
   // Body subtle bob
-  rig.bodyPivot.position.y = isWalking ? Math.abs(Math.sin(timeSec * 10.5)) * 0.07 : Math.sin(timeSec * 2.2) * 0.02;
+  rig.bodyPivot.position.y = isSeated
+    ? -0.35
+    : isWalking
+    ? Math.abs(Math.sin(timeSec * 10.5)) * 0.07
+    : Math.sin(timeSec * 2.2) * 0.02;
 
-  // Contact shadow fade on jump
+  // Contact shadow fade on jump / when seated inside boat
   const shadowMat = rig.contactShadow.material as THREE.MeshBasicMaterial;
-  shadowMat.opacity = isGrounded ? 0.48 : 0.2;
+  shadowMat.opacity = isSeated ? 0 : isGrounded ? 0.48 : 0.2;
 
   // Arms & Rod flex based on fishing state
   let targetRightArmX = -walkSwing * 0.85;
@@ -638,7 +655,145 @@ export function createCaughtFish3D(
 }
 
 // ============================================================
-// 4. 8 Distinct Island Dioramas + Instanced Fish + Aurora
+// 3B. 4 Drivable Roblox-Style 3D Boats (Rowboat -> Galleon)
+// ============================================================
+
+export function createBoatModel(boat: FischBoat): FischBoat3DHandle {
+  const root = new THREE.Group();
+  const hullGroup = new THREE.Group();
+  root.add(hullGroup);
+
+  const hullMat = new THREE.MeshStandardMaterial({
+    color: boat.colorHex,
+    roughness: boat.hullStyle === 'speedboat' ? 0.32 : 0.72,
+    metalness: boat.hullStyle === 'trawler' ? 0.45 : 0.12,
+  });
+  const accentMat = new THREE.MeshStandardMaterial({
+    color: boat.accentHex,
+    roughness: 0.42,
+    metalness: 0.22,
+  });
+  const trimMat = new THREE.MeshStandardMaterial({
+    color: '#4A311E',
+    roughness: 0.85,
+  });
+  const lanternGlowMat = new THREE.MeshStandardMaterial({
+    color: '#FDE68A',
+    emissive: '#F59E0B',
+    emissiveIntensity: 1.3,
+    roughness: 0.2,
+  });
+
+  const isGalleon = boat.hullStyle === 'galleon';
+  const isTrawler = boat.hullStyle === 'trawler';
+  const isSpeedboat = boat.hullStyle === 'speedboat';
+
+  const length = isGalleon ? 5.6 : isTrawler ? 4.8 : isSpeedboat ? 4.1 : 3.5;
+  const width = isGalleon ? 2.25 : isTrawler ? 2.0 : isSpeedboat ? 1.65 : 1.5;
+
+  // Main deck hull
+  const baseHull = new THREE.Mesh(new THREE.BoxGeometry(width, 0.56, length * 0.76), hullMat);
+  baseHull.position.y = 0.24;
+  baseHull.castShadow = true;
+  baseHull.receiveShadow = true;
+  hullGroup.add(baseHull);
+
+  // Pointed bow wedge (+Z forward)
+  const bow = new THREE.Mesh(new THREE.ConeGeometry(width * 0.52, length * 0.34, 4), hullMat);
+  bow.rotation.x = Math.PI / 2;
+  bow.rotation.y = Math.PI / 4;
+  bow.scale.set(1.0, 1.0, 0.54);
+  bow.position.set(0, 0.28, length * 0.48);
+  bow.castShadow = true;
+  hullGroup.add(bow);
+
+  // Gunwale side rails & Deck inlay
+  const railL = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.28, length * 0.76), accentMat);
+  railL.position.set(-width * 0.46, 0.62, 0);
+  const railR = railL.clone();
+  railR.position.x = width * 0.46;
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(width * 0.82, 0.08, length * 0.72), trimMat);
+  deck.position.set(0, 0.54, 0);
+  hullGroup.add(railL, railR, deck);
+
+  // Bow beacon lantern
+  const bowLantern = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.22, 0.18), lanternGlowMat);
+  bowLantern.position.set(0, 0.78, length * 0.45);
+  hullGroup.add(bowLantern);
+
+  // Boat-class superstructures
+  if (isSpeedboat) {
+    const windshield = new THREE.Mesh(
+      new THREE.BoxGeometry(width * 0.8, 0.38, 0.08),
+      new THREE.MeshStandardMaterial({ color: '#BAE6FD', roughness: 0.12, metalness: 0.35 })
+    );
+    windshield.position.set(0, 0.82, 0.72);
+    windshield.rotation.x = -0.4;
+    const motor = new THREE.Mesh(
+      new THREE.BoxGeometry(0.45, 0.52, 0.55),
+      new THREE.MeshStandardMaterial({ color: '#1F2937', roughness: 0.35, metalness: 0.7 })
+    );
+    motor.position.set(0, 0.48, -length * 0.42);
+    hullGroup.add(windshield, motor);
+  } else if (isTrawler) {
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(width * 0.72, 1.15, 1.35), accentMat);
+    cabin.position.set(0, 1.1, 0.78);
+    cabin.castShadow = true;
+    const windowStrip = new THREE.Mesh(
+      new THREE.BoxGeometry(width * 0.74, 0.34, 0.9),
+      new THREE.MeshStandardMaterial({ color: '#38BDF8', emissive: '#0284C7', emissiveIntensity: 0.35, roughness: 0.15 })
+    );
+    windowStrip.position.set(0, 1.32, 0.82);
+    const smokestack = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.9, 10), hullMat);
+    smokestack.position.set(0.35, 1.85, 0.55);
+    hullGroup.add(cabin, windowStrip, smokestack);
+  } else if (isGalleon) {
+    const sternDeck = new THREE.Mesh(new THREE.BoxGeometry(width * 0.92, 0.5, 1.4), trimMat);
+    sternDeck.position.set(0, 0.78, -length * 0.25);
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 4.2, 8), trimMat);
+    mast.position.set(0, 2.55, 0.3);
+    mast.castShadow = true;
+    const sail = new THREE.Mesh(
+      new THREE.BoxGeometry(2.5, 1.9, 0.08),
+      new THREE.MeshStandardMaterial({ color: '#F7F6F1', roughness: 0.85 })
+    );
+    sail.position.set(0, 3.05, 0.38);
+    const crowNest = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.26, 0.3, 8), accentMat);
+    crowNest.position.set(0, 4.3, 0.3);
+    hullGroup.add(sternDeck, mast, sail, crowNest);
+  } else {
+    // Starter Rowboat cross bench + side oars
+    const bench = new THREE.Mesh(new THREE.BoxGeometry(width * 0.85, 0.1, 0.42), accentMat);
+    bench.position.set(0, 0.62, 0);
+    const oarL = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 1.8, 6), accentMat);
+    oarL.rotation.z = Math.PI / 2 - 0.15;
+    oarL.position.set(-width * 0.58, 0.58, 0.15);
+    const oarR = oarL.clone();
+    oarR.rotation.z = -(Math.PI / 2 - 0.15);
+    oarR.position.x = width * 0.58;
+    hullGroup.add(bench, oarL, oarR);
+  }
+
+  // Bench seat anchor where angler rig sits comfortably
+  const seatAnchor = new THREE.Object3D();
+  seatAnchor.position.set(0, isGalleon ? 1.02 : 0.68, isTrawler ? -0.45 : isGalleon ? -0.75 : -0.15);
+  hullGroup.add(seatAnchor);
+
+  const wakeAnchor = new THREE.Object3D();
+  wakeAnchor.position.set(0, 0.05, -length * 0.48);
+  hullGroup.add(wakeAnchor);
+
+  return {
+    root,
+    hullGroup,
+    seatAnchor,
+    wakeAnchor,
+    dispose: () => disposeObject3DTree(root),
+  };
+}
+
+// ============================================================
+// 4. 11 Distinct Island Dioramas + Outpost Isles + Seagulls + Aurora
 // ============================================================
 
 export function buildIslandEnvironment(
@@ -659,6 +814,9 @@ export function buildIslandEnvironment(
     sunstone: ['#D6A95C', '#B6873D'],
     sovereignty: ['#7F8E9B', '#61707D'],
     desolate_deep: ['#1C2B3B', '#111C28'],
+    forsaken_shores: ['#6E5443', '#4E392C'],
+    ancient_isle: ['#8A7C58', '#6B5E3E'],
+    the_depths: ['#22384F', '#142336'],
   };
   const [gBase, gAccent] = groundPalette[island.id] ?? groundPalette.moosewood;
   const groundTex = createGroundStoneTexture(gBase, gAccent, maxAnisotropy);
@@ -902,6 +1060,49 @@ export function buildIslandEnvironment(
     const porthole = new THREE.Mesh(new THREE.SphereGeometry(0.36, 10, 10), cyanGlow);
     porthole.position.set(-6.9, 0.45, 4.8);
     group.add(hull, tower, porthole);
+  } else if (island.silhouetteType === 'forsaken') {
+    // Pirate Skull Arch + Shattered Shipwreck Mast
+    const skullMat = new THREE.MeshStandardMaterial({ color: '#4B443E', roughness: 0.9 });
+    const emberMat = new THREE.MeshStandardMaterial({ color: '#F97316', emissive: '#EA580C', emissiveIntensity: 1.4 });
+    const skullRock = new THREE.Mesh(new THREE.DodecahedronGeometry(3.4, 0), skullMat);
+    skullRock.position.set(0, 3.2, -13.0);
+    const mastPole = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 7.2, 8), darkTimberMat);
+    mastPole.position.set(-7.5, 3.4, -10.0);
+    mastPole.rotation.z = 0.22;
+    const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 8), emberMat);
+    eyeL.position.set(-1.1, 3.4, -10.2);
+    const eyeR = eyeL.clone();
+    eyeR.position.x = 1.1;
+    group.add(skullRock, mastPole, eyeL, eyeR);
+  } else if (island.silhouetteType === 'ancient') {
+    // Glowing Meteor Crater Monolith + Ancient Stone Pillars
+    const stoneMat = new THREE.MeshStandardMaterial({ color: '#6E6656', roughness: 0.88 });
+    const meteorMat = new THREE.MeshStandardMaterial({ color: '#34D399', emissive: '#10B981', emissiveIntensity: 1.35, roughness: 0.25 });
+    const meteor = new THREE.Mesh(new THREE.OctahedronGeometry(2.6, 0), meteorMat);
+    meteor.position.set(0, 3.6, -13.2);
+    [-6.5, 6.5].forEach((px, idx) => {
+      const pillar = new THREE.Mesh(new THREE.BoxGeometry(1.4, 4.8 + idx * 0.8, 1.4), stoneMat);
+      pillar.position.set(px, 2.5, -11.5);
+      pillar.rotation.z = idx === 0 ? 0.12 : -0.14;
+      group.add(pillar);
+    });
+    group.add(meteor);
+  } else if (island.silhouetteType === 'depths') {
+    // Abyssal Crystal Atoll Spires
+    const basaltMat = new THREE.MeshStandardMaterial({ color: '#172336', roughness: 0.88 });
+    const crystalGlowMat = new THREE.MeshStandardMaterial({ color: '#38BDF8', emissive: '#0284C7', emissiveIntensity: 1.45, roughness: 0.18 });
+    [
+      [-6.5, -11.5, 1.2, 5.2],
+      [0, -13.8, 1.7, 7.4],
+      [6.8, -11.2, 1.2, 5.5],
+    ].forEach(([cx, cz, cr, ch]) => {
+      const base = new THREE.Mesh(new THREE.ConeGeometry(cr * 1.4, 2.2, 6), basaltMat);
+      base.position.set(cx, 1.2, cz);
+      const spire = new THREE.Mesh(new THREE.OctahedronGeometry(cr, 0), crystalGlowMat);
+      spire.scale.set(0.75, ch / (cr * 2), 0.75);
+      spire.position.set(cx, 2.0 + ch * 0.35, cz);
+      group.add(base, spire);
+    });
   } else {
     // Cozy Stylized Pine / Palm Grove + Boathouse Cabin (Moosewood, Roslit Bay, Sunstone)
     const trunkMat = new THREE.MeshStandardMaterial({ color: '#6B4423', roughness: 0.88 });
@@ -946,6 +1147,93 @@ export function buildIslandEnvironment(
     roof.castShadow = true;
     group.add(cabin, roof);
   }
+
+  // Harbor Detail Props: Mooring Bollards, Floating Wooden Barrels & Buoy Beacons
+  const crateMat = new THREE.MeshStandardMaterial({ color: '#8C623E', roughness: 0.86 });
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.72, 10), crateMat);
+  barrel.position.set(-3.9, 1.32, 10.6);
+  const crateSmall = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.56, 0.62), crateMat);
+  crateSmall.position.set(3.2, 1.24, 10.8);
+  group.add(barrel, crateSmall);
+
+  // Distant Sail-To Boat-Only Outpost Islands + Sea Route Channel Buoys
+  const buoyCoords: Array<[number, number, string]> = [
+    [-24, 23, '#F97316'],
+    [25, 24, '#34D399'],
+    [0, 38, '#38BDF8'],
+  ];
+  for (const [bx, bz, bHex] of buoyCoords) {
+    const buoyBase = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.55, 0.75, 0.75, 10),
+      new THREE.MeshStandardMaterial({ color: '#DC2626', roughness: 0.55 })
+    );
+    buoyBase.position.set(bx, 0.18, bz);
+    const buoyTop = new THREE.Mesh(
+      new THREE.SphereGeometry(0.24, 8, 8),
+      new THREE.MeshStandardMaterial({ color: bHex, emissive: bHex, emissiveIntensity: 1.6 })
+    );
+    buoyTop.position.set(bx, 1.15, bz);
+    const buoyPole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.8, 6), bollardCapMat);
+    buoyPole.position.set(bx, 0.72, bz);
+    group.add(buoyBase, buoyPole, buoyTop);
+  }
+
+  for (const beacon of FISCH_OUTPOST_BEACONS) {
+    const outpostGroup = new THREE.Group();
+    outpostGroup.position.set(beacon.x, 0, beacon.z);
+
+    const baseIsland = new THREE.Mesh(
+      new THREE.CylinderGeometry(5.8, 7.6, 2.2, 16),
+      new THREE.MeshStandardMaterial({
+        color:
+          beacon.islandId === 'forsaken_shores'
+            ? '#5C4435'
+            : beacon.islandId === 'ancient_isle'
+            ? '#7A6F52'
+            : '#1B2D42',
+        roughness: 0.88,
+      })
+    );
+    baseIsland.position.y = -0.1;
+    outpostGroup.add(baseIsland);
+
+    const landmark = new THREE.Mesh(
+      beacon.islandId === 'forsaken_shores'
+        ? new THREE.ConeGeometry(2.8, 5.2, 6)
+        : beacon.islandId === 'ancient_isle'
+        ? new THREE.OctahedronGeometry(2.4, 0)
+        : new THREE.ConeGeometry(2.2, 6.2, 5),
+      new THREE.MeshStandardMaterial({
+        color: beacon.accentHex,
+        emissive: beacon.accentHex,
+        emissiveIntensity: 0.45,
+        roughness: 0.35,
+      })
+    );
+    landmark.position.y = 2.6;
+    outpostGroup.add(landmark);
+
+    const outpostLabel = createNameplateSprite(beacon.name, `Min Lv. ${beacon.minLevel} (Kapal)`, beacon.accentHex);
+    outpostLabel.scale.set(5.5, 1.65, 1);
+    outpostLabel.position.set(0, 6.8, 0);
+    outpostGroup.add(outpostLabel);
+
+    group.add(outpostGroup);
+  }
+
+  // Soaring Seagulls overhead (10 InstancedMesh gulls)
+  const gullGeo = new THREE.BoxGeometry(1.1, 0.06, 0.24);
+  const gullMat = new THREE.MeshStandardMaterial({ color: '#F8FAFC', roughness: 0.65 });
+  const gullCount = 10;
+  const gullInst = new THREE.InstancedMesh(gullGeo, gullMat, gullCount);
+  gullInst.frustumCulled = false;
+  const gullData = Array.from({ length: gullCount }, (_, i) => ({
+    radius: 14 + (i % 4) * 7,
+    speed: 0.22 + (i % 3) * 0.07,
+    height: 11 + (i % 4) * 2.2,
+    phase: (i / gullCount) * Math.PI * 2,
+  }));
+  group.add(gullInst);
 
   // Instanced Underwater Swimming Fish School (28 instances)
   const fishBodyGeo = new THREE.ConeGeometry(0.24, 0.9, 6);
@@ -1050,6 +1338,22 @@ export function buildIslandEnvironment(
         fishSchoolMesh.setMatrixAt(i, fishDummy.matrix);
       }
       fishSchoolMesh.instanceMatrix.needsUpdate = true;
+
+      // Animate soaring seagulls overhead
+      for (let i = 0; i < gullCount; i += 1) {
+        const gd = gullData[i];
+        const ang = gd.phase + timeSec * gd.speed;
+        fishDummy.position.set(
+          Math.cos(ang) * gd.radius,
+          gd.height + Math.sin(timeSec * 3.8 + i) * 0.45,
+          Math.sin(ang) * gd.radius
+        );
+        fishDummy.rotation.set(Math.sin(timeSec * 6.5 + i) * 0.25, -ang, 0);
+        fishDummy.scale.setScalar(1);
+        fishDummy.updateMatrix();
+        gullInst.setMatrixAt(i, fishDummy.matrix);
+      }
+      gullInst.instanceMatrix.needsUpdate = true;
 
       // Animate NPCs (subtle bob + Keeper's Altar crystal spin)
       for (const actor of npcActors) {

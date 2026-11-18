@@ -23,6 +23,8 @@ export interface FischIsland {
   description: string;
   dangerNote?: string;
   requiresHeatProtect?: boolean;
+  requiresBoat?: boolean;
+  outpostCoords?: { x: number; z: number };
   skyTopLight: string;
   skyBottomLight: string;
   waterTopLight: string;
@@ -31,8 +33,83 @@ export interface FischIsland {
   skyBottomDark: string;
   waterTopDark: string;
   waterBottomDark: string;
-  silhouetteType: 'dock' | 'coral' | 'swamp' | 'volcano' | 'ice' | 'sunstone' | 'statue' | 'abyss';
+  silhouetteType:
+    | 'dock'
+    | 'coral'
+    | 'swamp'
+    | 'volcano'
+    | 'ice'
+    | 'sunstone'
+    | 'statue'
+    | 'abyss'
+    | 'forsaken'
+    | 'ancient'
+    | 'depths';
 }
+
+export interface FischBoat {
+  id: string;
+  name: string;
+  price: number;
+  minLevel: number;
+  speed: number;
+  turnSpeed: number;
+  hullStyle: 'rowboat' | 'speedboat' | 'trawler' | 'galleon';
+  colorHex: string;
+  accentHex: string;
+  description: string;
+}
+
+export const FISCH_BOATS: FischBoat[] = [
+  {
+    id: 'rowboat',
+    name: 'Perahu Dayung Kayu',
+    price: 0,
+    minLevel: 1,
+    speed: 8.2,
+    turnSpeed: 2.5,
+    hullStyle: 'rowboat',
+    colorHex: '#8C5E3C',
+    accentHex: '#D9B382',
+    description: 'Perahu kayu ringan bawaan pelabuhan. Cukup untuk memancing di tengah laut dan menjelajah pulau terdekat.',
+  },
+  {
+    id: 'speedboat',
+    name: 'Speedboat Penjelajah',
+    price: 2800,
+    minLevel: 3,
+    speed: 13.5,
+    turnSpeed: 3.1,
+    hullStyle: 'speedboat',
+    colorHex: '#1D6664',
+    accentHex: '#F7F6F1',
+    description: 'Perahu motor lincah yang membelah ombak dengan cepat menuju Forsaken Shores.',
+  },
+  {
+    id: 'trawler',
+    name: 'Kapal Pancing Trawler',
+    price: 12500,
+    minLevel: 8,
+    speed: 17.0,
+    turnSpeed: 2.4,
+    hullStyle: 'trawler',
+    colorHex: '#B84F3C',
+    accentHex: '#F6C453',
+    description: 'Kapal besi kokoh berlampu sorot kabin, stabil diterjang badai menuju Ancient Isle.',
+  },
+  {
+    id: 'pirate_ship',
+    name: 'Galleon Bajak Laut',
+    price: 48000,
+    minLevel: 15,
+    speed: 21.5,
+    turnSpeed: 2.2,
+    hullStyle: 'galleon',
+    colorHex: '#3B281E',
+    accentHex: '#EAB308',
+    description: 'Kapal layar raksasa berlayar penuh dan lentera emas untuk ekspedisi jauh ke The Depths.',
+  },
+];
 
 export interface FischRod {
   id: string;
@@ -293,6 +370,63 @@ export const FISCH_ISLANDS: FischIsland[] = [
     waterTopDark: '#0B2838',
     waterBottomDark: '#02070D',
     silhouetteType: 'abyss',
+  },
+  {
+    id: 'forsaken_shores',
+    name: 'Forsaken Shores',
+    subtitle: 'Pulau Bajak Laut (Wajib Naik Kapal)',
+    minLevel: 6,
+    requiresBoat: true,
+    outpostCoords: { x: -48, z: 36 },
+    description:
+      'Pulau karang tengkorak dan bangkai kapal bajak laut di samudra barat. Hanya dapat diakses menggunakan kapal dari dermaga!',
+    skyTopLight: '#C8B8A6',
+    skyBottomLight: '#EADCCB',
+    waterTopLight: '#2E727D',
+    waterBottomLight: '#10343F',
+    skyTopDark: '#12101B',
+    skyBottomDark: '#262033',
+    waterTopDark: '#173A4A',
+    waterBottomDark: '#051017',
+    silhouetteType: 'forsaken',
+  },
+  {
+    id: 'ancient_isle',
+    name: 'Ancient Isle',
+    subtitle: 'Kepulauan Meteor Prasejarah (Wajib Naik Kapal)',
+    minLevel: 12,
+    requiresBoat: true,
+    outpostCoords: { x: 50, z: 38 },
+    description:
+      'Pulau purba di timur samudra dengan kawah meteor bercahaya. Rumah fosil hidup seperti Mosasaurus dan Leedsichthys!',
+    skyTopLight: '#BFD9C8',
+    skyBottomLight: '#ECEAD3',
+    waterTopLight: '#288580',
+    waterBottomLight: '#0F4447',
+    skyTopDark: '#08181D',
+    skyBottomDark: '#17363B',
+    waterTopDark: '#13494D',
+    waterBottomDark: '#05161A',
+    silhouetteType: 'ancient',
+  },
+  {
+    id: 'the_depths',
+    name: 'The Depths Atoll',
+    subtitle: 'Atol Kristal Samudra Dalam (Wajib Naik Kapal)',
+    minLevel: 18,
+    requiresBoat: true,
+    outpostCoords: { x: 0, z: 68 },
+    description:
+      'Atol batu gelap berpendar kristal biru-ungu jauh di utara samudra terbuka, hanya dapat ditempuh pelaut tangguh dengan kapal.',
+    skyTopLight: '#91B4C9',
+    skyBottomLight: '#C9E1EE',
+    waterTopLight: '#1D4963',
+    waterBottomLight: '#081C2B',
+    skyTopDark: '#040914',
+    skyBottomDark: '#121F38',
+    waterTopDark: '#0D2A42',
+    waterBottomDark: '#020710',
+    silhouetteType: 'depths',
   },
 ];
 
@@ -1073,6 +1207,48 @@ const ISLAND_SPECIES_SEEDS: Record<string, RawSpeciesSeed[]> = {
     { name: 'Spectral Leviathan', rarity: 'Mythical', minKg: 210.0, maxKg: 540.0, val: 620, weather: 'Aurora', bait: 'truffle_worm', color: '#394378', accent: '#9BF6FF', desc: 'Leviathan bercahaya spektral paling dicari di Desolate Deep.' },
     { name: 'Scylla', rarity: 'Exotic', minKg: 420.0, maxKg: 1150.0, val: 1450, time: 'Night', bait: 'truffle_worm', color: '#5E1B3B', accent: '#7CE8FF', desc: 'Puncak rantai samudra Fisch: naga hydra laut dalam berharga tak ternilai!' },
   ],
+  forsaken_shores: [
+    { name: 'Shattered Plank', rarity: 'Trash', minKg: 2.0, maxKg: 6.5, val: 11, color: '#6E4C36', accent: '#A67B5B', desc: 'Papan kapal bajak laut tua yang penuh teritip.' },
+    { name: 'Corsair Herring', rarity: 'Common', minKg: 0.4, maxKg: 1.5, val: 72, bait: 'flakes', color: '#89A3B2', accent: '#E8EEF2', desc: 'Ikan haring perak berenang di sela bangkai kapal karam.' },
+    { name: 'Buccaneer Bass', rarity: 'Common', minKg: 2.0, maxKg: 7.5, val: 68, bait: 'worm', color: '#527358', accent: '#D6BE7A', desc: 'Bass laut tangguh yang menghuni perairan berkarang tengkorak.' },
+    { name: 'Cutlass Gar', rarity: 'Uncommon', minKg: 4.5, maxKg: 16.0, val: 94, bait: 'minnow', color: '#6B8596', accent: '#E5E7EB', desc: 'Ikan berhidung tajam bagai pedang bajak laut.' },
+    { name: 'Shipwreck Eel', rarity: 'Uncommon', minKg: 3.2, maxKg: 11.5, val: 108, time: 'Night', bait: 'maggot', color: '#3E4A44', accent: '#D98270', desc: 'Belut gelap penghuni lambung kapal kayu karam.' },
+    { name: 'Galleon Snapper', rarity: 'Unusual', minKg: 3.8, maxKg: 14.0, val: 138, bait: 'shrimp', color: '#B84A39', accent: '#F6C453', desc: 'Kakap merah berbintik koin emas dari harta karam.' },
+    { name: 'Cannonball Puffer', rarity: 'Unusual', minKg: 2.5, maxKg: 8.5, val: 145, bait: 'shrimp', color: '#474F57', accent: '#F4A261', desc: 'Ikan buntal hitam bundar sekeras peluru meriam.' },
+    { name: 'Reef Cutlassfish', rarity: 'Rare', minKg: 6.0, maxKg: 21.0, val: 210, bait: 'minnow', color: '#A5B4C2', accent: '#F7F6F1', desc: 'Ikan pita mengilap seperti bilah perak membelah ombak.' },
+    { name: 'Blackbeard Shark', rarity: 'Rare', minKg: 42.0, maxKg: 135.0, val: 165, time: 'Night', bait: 'fish_head', color: '#28303B', accent: '#EAB308', desc: 'Hiu agresif berbercak sirip hitam khas Forsaken Shores.' },
+    { name: 'Captain Goldfish', rarity: 'Legendary', minKg: 2.2, maxKg: 7.0, val: 780, time: 'Day', bait: 'weird_algae', color: '#F59E0B', accent: '#FEF08A', desc: 'Ikan mas legendaris bertanduk emas yang diburu para kapten kapal.' },
+    { name: 'Cursed Pirate Ray', rarity: 'Mythical', minKg: 78.0, maxKg: 210.0, val: 380, weather: 'Storm', bait: 'truffle_worm', color: '#3B2848', accent: '#34D399', desc: 'Pari bayangan berpola peta bintang yang muncul saat badai.' },
+    { name: 'Kraken Crown', rarity: 'Exotic', minKg: 160.0, maxKg: 440.0, val: 1250, weather: 'Aurora', bait: 'truffle_worm', color: '#7B3FE4', accent: '#FBBF24', desc: 'Relik hidup penguasa Forsaken Shores bertatahkan kilau emas.' },
+  ],
+  ancient_isle: [
+    { name: 'Fossil Shell', rarity: 'Trash', minKg: 1.8, maxKg: 5.5, val: 15, color: '#8A7E6A', accent: '#D6CCB8', desc: 'Cangkang amonit tua terbawa ombak kawah purba.' },
+    { name: 'Xiphactinus Fry', rarity: 'Common', minKg: 1.5, maxKg: 5.5, val: 95, bait: 'minnow', color: '#4B7888', accent: '#C8E2EA', desc: 'Ikan purba cepat bergigi kecil di pinggir atol meteor.' },
+    { name: 'Trilobite', rarity: 'Common', minKg: 0.8, maxKg: 3.0, val: 112, bait: 'worm', color: '#7D6A52', accent: '#C9B294', desc: 'Arthropoda prasejarah bersegmen yang hidup di pasir kuno.' },
+    { name: 'Birgeria', rarity: 'Uncommon', minKg: 5.0, maxKg: 18.0, val: 135, bait: 'squid', color: '#3F6E6E', accent: '#A6D8D4', desc: 'Predator Trias gesit bersirip ekor simetris.' },
+    { name: 'Anomalocaris', rarity: 'Uncommon', minKg: 2.2, maxKg: 7.8, val: 165, bait: 'shrimp', color: '#B35C44', accent: '#F2C185', desc: 'Pemburu Kambrium dengan sirip beruas di sisi tubuhnya.' },
+    { name: 'Helicoprion', rarity: 'Unusual', minKg: 38.0, maxKg: 120.0, val: 148, bait: 'fish_head', color: '#4A5D6E', accent: '#D9E4EC', desc: 'Hiu purba berrahang gergaji melingkar yang sangat ikonik.' },
+    { name: 'Dunkleosteus Elder', rarity: 'Rare', minKg: 110.0, maxKg: 320.0, val: 215, bait: 'fish_head', color: '#5E5042', accent: '#E2C9A5', desc: 'Ikan lapis baja raksasa penjaga karang meteor Ancient Isle.' },
+    { name: 'Leedsichthys', rarity: 'Rare', minKg: 240.0, maxKg: 680.0, val: 185, bait: 'coral', color: '#3D627A', accent: '#BDE0EE', desc: 'Salah satu ikan bertulang sejati terbesar sepanjang masa.' },
+    { name: 'Plesiosaur', rarity: 'Legendary', minKg: 195.0, maxKg: 520.0, val: 340, time: 'Day', bait: 'squid', color: '#2F6F7E', accent: '#9BF6FF', desc: 'Reptil laut berleher panjang yang melesat keluar dari arus dalam.' },
+    { name: 'Mosasaurus', rarity: 'Mythical', minKg: 340.0, maxKg: 890.0, val: 540, time: 'Day', weather: 'Clear', bait: 'truffle_worm', color: '#244A54', accent: '#F6C453', desc: 'Penguasa puncak samudra Kapur dengan kekuatan tarik dahsyat.' },
+    { name: 'Meteor Leviathan', rarity: 'Mythical', minKg: 280.0, maxKg: 740.0, val: 620, weather: 'Aurora', bait: 'truffle_worm', color: '#39527A', accent: '#56F0B5', desc: 'Leviathan bercahaya batu meteor kuno.' },
+    { name: 'Ancient Megalodon', rarity: 'Exotic', minKg: 520.0, maxKg: 1380.0, val: 1420, weather: 'Aurora', bait: 'truffle_worm', color: '#293545', accent: '#FF8E7A', desc: 'Raja predator prasejarah yang hanya ditemui pelaut ke Ancient Isle.' },
+  ],
+  the_depths: [
+    { name: 'Crystal Shard', rarity: 'Trash', minKg: 1.5, maxKg: 4.5, val: 22, color: '#4B6B88', accent: '#A8F5FF', desc: 'Pecahan kristal laut dalam yang masih berpendar redup.' },
+    { name: 'Crystal Carp', rarity: 'Common', minKg: 1.8, maxKg: 6.0, val: 142, bait: 'bagel', color: '#589EB5', accent: '#E0FBFC', desc: 'Ikan karper transparan penghuni atol kristal.' },
+    { name: 'Luminescent Minnow', rarity: 'Common', minKg: 0.4, maxKg: 1.4, val: 155, bait: 'flakes', color: '#36B5A8', accent: '#A8F5E3', desc: 'Ikan kecil bercahaya biru-toska terang di air gelap.' },
+    { name: 'Deep Nautilus', rarity: 'Uncommon', minKg: 3.5, maxKg: 12.0, val: 210, bait: 'shrimp', color: '#7D6E9E', accent: '#F2E6FF', desc: 'Moluska purba bercangkang kristal ungu lembut.' },
+    { name: 'Nether Eel', rarity: 'Uncommon', minKg: 4.8, maxKg: 16.5, val: 198, time: 'Night', bait: 'maggot', color: '#312E59', accent: '#C084FC', desc: 'Belut cepat bercahaya lembayung di sekitar palung kristal.' },
+    { name: 'Abyssal Flounder', rarity: 'Unusual', minKg: 4.0, maxKg: 14.0, val: 235, bait: 'worm', color: '#3D5570', accent: '#7CE8FF', desc: 'Ikan dasar gelap bermata bercahaya neon.' },
+    { name: 'Mutated Shark', rarity: 'Rare', minKg: 65.0, maxKg: 190.0, val: 270, bait: 'fish_head', color: '#36415E', accent: '#56F0B5', desc: 'Hiu atol yang terinfusi energi kristal kedalaman.' },
+    { name: 'Depths Angler', rarity: 'Rare', minKg: 8.5, maxKg: 26.0, val: 380, time: 'Night', bait: 'night_shrimp', color: '#222E47', accent: '#F6C453', desc: 'Pemancing kedalaman dengan antena lentera kristal kembar.' },
+    { name: 'Sea Snake King', rarity: 'Legendary', minKg: 48.0, maxKg: 145.0, val: 560, bait: 'weird_algae', color: '#264F6B', accent: '#7CE8FF', desc: 'Ular laut gesit bermahkota kristal bercahaya.' },
+    { name: 'Ancient Depth Kraken', rarity: 'Mythical', minKg: 260.0, maxKg: 680.0, val: 680, bait: 'truffle_worm', color: '#2A1D42', accent: '#A8F5E3', desc: 'Kraken penjaga pusaran kristal di utara samudra.' },
+    { name: 'Crystalized Leviathan', rarity: 'Mythical', minKg: 310.0, maxKg: 810.0, val: 720, weather: 'Aurora', bait: 'truffle_worm', color: '#3E5E9E', accent: '#FF9EAA', desc: 'Leviathan berlapis kristal prismatik sangat langka.' },
+    { name: 'Eternal Abyss Dragon', rarity: 'Exotic', minKg: 480.0, maxKg: 1280.0, val: 1580, time: 'Night', bait: 'truffle_worm', color: '#4C1D95', accent: '#56F0B5', desc: 'Naga kristal samudra dalam tertinggi yang menjadi buruan utama kapten Fisch.' },
+  ],
 };
 
 function slugifyId(islandId: string, name: string): string {
@@ -1341,5 +1517,48 @@ export const FISCH_QUESTS: FischQuest[] = [
     rewardXp: 12000,
     rewardRelics: 5,
     rewardBait: { baitId: 'truffle_worm', amount: 10 },
+  },
+  {
+    id: 'q_shipwright_sail',
+    npcName: 'Tukang Kapal',
+    npcRole: 'Galangan Kapal Moosewood',
+    title: 'Pelayaran ke Forsaken Shores',
+    description: 'Naiki kapalmu dari dermaga dan tangkap 6 ikan di perairan pulau bajak laut Forsaken Shores.',
+    minLevel: 6,
+    targetType: 'island_catch',
+    targetValue: 'forsaken_shores',
+    requiredAmount: 6,
+    rewardCredits: 3800,
+    rewardXp: 1500,
+    rewardCrate: { crateId: 'crate__quality_bait_crate', amount: 2 },
+  },
+  {
+    id: 'q_ancient_fossil',
+    npcName: 'Dr. Fin',
+    npcRole: 'Arkeolog Ancient Isle',
+    title: 'Ekspedisi Kawah Purba',
+    description: 'Berlayar ke Ancient Isle dan tangkap 8 makhluk prasejarah dari kawah meteor.',
+    minLevel: 12,
+    targetType: 'island_catch',
+    targetValue: 'ancient_isle',
+    requiredAmount: 8,
+    rewardCredits: 14000,
+    rewardXp: 4200,
+    rewardRelics: 3,
+  },
+  {
+    id: 'q_depths_dragon',
+    npcName: 'Penjaga Atol',
+    npcRole: 'Suar The Depths',
+    title: 'Pelaut Menuju Atol Kristal',
+    description: 'Capai The Depths Atoll memakai kapal dan tangkap 8 ikan bercahaya dari sana.',
+    minLevel: 18,
+    targetType: 'island_catch',
+    targetValue: 'the_depths',
+    requiredAmount: 8,
+    rewardCredits: 32000,
+    rewardXp: 9000,
+    rewardRelics: 4,
+    rewardBait: { baitId: 'truffle_worm', amount: 8 },
   },
 ];

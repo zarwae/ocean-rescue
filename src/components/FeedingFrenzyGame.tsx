@@ -17,6 +17,8 @@ import {
   AlertTriangle,
   Check,
   Volume2,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import {
@@ -51,6 +53,7 @@ import {
 import { soundEffects } from '../utils/soundEffects';
 import { calculateXpFromGame } from '../utils/gameRules';
 import { ThemeMode } from '../hooks/useTheme';
+import { useGameFullscreen } from '../hooks/useGameFullscreen';
 
 type FFGameState = 'TITLE_MENU' | 'PLAYING' | 'PAUSED' | 'STAGE_CLEAR' | 'GAME_OVER';
 type FFMode = 'campaign' | 'time_attack';
@@ -244,6 +247,7 @@ export const FeedingFrenzyGame: React.FC<FeedingFrenzyGameProps> = ({
   onRecordGame,
   theme = 'dark',
 }) => {
+  const { containerRef: ffFsRef, isFullscreen, toggleFullscreen } = useGameFullscreen();
   const [gameState, setGameState] = useState<FFGameState>('TITLE_MENU');
   const [mode, setMode] = useState<FFMode>('campaign');
   const [selectedHeroId, setSelectedHeroId] = useState<PlayableFishId>('andy');
@@ -1425,7 +1429,14 @@ export const FeedingFrenzyGame: React.FC<FeedingFrenzyGameProps> = ({
   return (
     <div className="space-y-4">
       {/* Main Interactive Feeding Frenzy Frame */}
-      <div className="relative rounded-2xl bg-[var(--bg-elevated)] dark:bg-[#061116] text-[#0B1E27] dark:text-[#EDEBE3] shadow-2xl overflow-hidden border border-[#0B1E27]/12 dark:border-[#82AAA1]/20 select-none transition-colors duration-300">
+      <div
+        ref={ffFsRef}
+        className={`bg-[var(--bg-elevated)] dark:bg-[#061116] text-[#0B1E27] dark:text-[#EDEBE3] shadow-2xl overflow-hidden border border-[#0B1E27]/12 dark:border-[#82AAA1]/20 select-none transition-colors duration-300 ${
+          isFullscreen
+            ? 'fixed inset-0 z-50 w-screen h-[100dvh] rounded-none flex flex-col justify-between'
+            : 'relative rounded-2xl'
+        }`}
+      >
         {/* TOP HUD BAR (Visible while Playing / Paused) */}
         {gameState !== 'TITLE_MENU' && (
           <div className="relative z-20 px-4 sm:px-5 py-3 bg-[#F7F6F1]/95 dark:bg-[#061116]/90 border-b border-[#0B1E27]/10 dark:border-[#82AAA1]/15 space-y-2.5">
@@ -1574,6 +1585,15 @@ export const FeedingFrenzyGame: React.FC<FeedingFrenzyGameProps> = ({
                   {gameState === 'PAUSED' ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
                   <span>{gameState === 'PAUSED' ? 'Lanjut' : 'Jeda'}</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={toggleFullscreen}
+                  className="px-2.5 py-1.5 rounded-lg bg-[#ECEAE1] hover:bg-[#DFDDD2] text-[#0B1E27] dark:bg-[#102B38] dark:hover:bg-[#17485A] dark:text-[#EDEBE3] text-xs font-medium flex items-center gap-1.5 cursor-pointer transition-colors"
+                  title={isFullscreen ? 'Keluar Layar Penuh (Esc)' : 'Layar Penuh'}
+                >
+                  {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                  <span className="hidden sm:inline">{isFullscreen ? 'Keluar' : 'Fullscreen'}</span>
+                </button>
               </div>
             </div>
 
@@ -1625,7 +1645,9 @@ export const FeedingFrenzyGame: React.FC<FeedingFrenzyGameProps> = ({
         {/* HIGH-DPI 60FPS CANVAS STAGE */}
         <div
           data-cursor-mode={gameState === 'PLAYING' ? 'hidden' : 'fish'}
-          className="relative w-full aspect-[16/9] min-h-[460px] bg-[#D9F1F0] dark:bg-[#061116] transition-colors duration-300"
+          className={`relative w-full bg-[#D9F1F0] dark:bg-[#061116] transition-colors duration-300 ${
+            isFullscreen ? 'flex-1 min-h-0 flex items-center justify-center' : 'aspect-[16/9] min-h-[460px]'
+          }`}
         >
           <canvas
             ref={canvasRef}
@@ -1639,7 +1661,7 @@ export const FeedingFrenzyGame: React.FC<FeedingFrenzyGameProps> = ({
               }
             }}
             onContextMenu={(e) => e.preventDefault()}
-            className="w-full h-full block touch-none"
+            className={`${isFullscreen ? 'w-full h-full object-contain' : 'w-full h-full'} block touch-none`}
           />
 
           {/* Floating Event Banner (Growth Up / Frenzy / Stage Intro) */}
@@ -1696,6 +1718,16 @@ export const FeedingFrenzyGame: React.FC<FeedingFrenzyGameProps> = ({
                       {(mode === 'campaign' ? bestCampaignScore : bestTimeAttackScore).toLocaleString('id-ID')}
                     </strong>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={toggleFullscreen}
+                    className="px-2.5 py-1.5 rounded-lg bg-[#ECEAE1] hover:bg-[#DFDDD2] text-[#0B1E27] dark:bg-[#091C25] dark:hover:bg-[#17485A] dark:text-[#EDEBE3] border border-[#0B1E27]/12 dark:border-[#82AAA1]/20 text-xs font-medium flex items-center gap-1.5 cursor-pointer transition-colors"
+                    title={isFullscreen ? 'Keluar Layar Penuh (Esc)' : 'Layar Penuh'}
+                  >
+                    {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                    <span>{isFullscreen ? 'Keluar' : 'Fullscreen'}</span>
+                  </button>
                 </div>
               </div>
 

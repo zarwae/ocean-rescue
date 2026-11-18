@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   FISCH_BAITS,
+  FISCH_BOATS,
   FISCH_ENCHANTS,
   FISCH_ISLANDS,
   FISCH_MUTATIONS,
@@ -12,6 +13,7 @@ import {
   applyFischXp,
   calculateFishSellValue,
   createInitialFischSave,
+  findBoat,
   getEffectiveStats,
   getReelPhysics,
   openCrateReward,
@@ -19,11 +21,14 @@ import {
   rollCatchResult,
 } from './fischEngine';
 
-test('FISCH_SPECIES has 200+ unique species and crates across all 8 islands', () => {
-  assert.ok(FISCH_SPECIES.length >= 220, `Expected 220+ species, got ${FISCH_SPECIES.length}`);
+test('FISCH_SPECIES has 250+ unique species and crates across all 11 islands and 4 boats', () => {
+  assert.ok(FISCH_SPECIES.length >= 250, `Expected 250+ species, got ${FISCH_SPECIES.length}`);
   const uniqueIds = new Set(FISCH_SPECIES.map((s) => s.id));
   assert.equal(uniqueIds.size, FISCH_SPECIES.length, 'Every species ID must be unique');
-  assert.equal(FISCH_ISLANDS.length, 8);
+  assert.equal(FISCH_ISLANDS.length, 11);
+  assert.ok(FISCH_BOATS.length >= 4);
+  assert.equal(findBoat('pirate_ship').hullStyle, 'galleon');
+  assert.equal(createInitialFischSave().equippedBoatId, 'rowboat');
   assert.ok(FISCH_RODS.length >= 16);
   assert.ok(FISCH_BAITS.length >= 14);
   assert.ok(FISCH_MUTATIONS.length >= 18);

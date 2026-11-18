@@ -16,6 +16,8 @@ import {
   Skull,
   Fish,
   Trash2,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import {
@@ -39,6 +41,7 @@ import { renderEnemySprite, renderHazardSprite, renderCompanionSprite } from '..
 import { FeedingFrenzyGame } from '../components/FeedingFrenzyGame';
 import { FischGame } from '../components/FischGame';
 import { ThemeMode } from '../hooks/useTheme';
+import { useGameFullscreen } from '../hooks/useGameFullscreen';
 
 interface GameViewProps {
   onAwardXp: (xp: number, reason: string) => void;
@@ -187,6 +190,7 @@ const ITEM_DEFINITIONS = [
 ];
 
 export const GameView: React.FC<GameViewProps> = ({ onAwardXp, onRecordGame, theme = 'dark' }) => {
+  const { containerRef: cleanupFsRef, isFullscreen: isCleanupFullscreen, toggleFullscreen: toggleCleanupFullscreen } = useGameFullscreen();
   const [selectedArcadeMode, setSelectedArcadeMode] = useState<'frenzy' | 'cleanup' | 'fisch'>('frenzy');
   const [currentLevelIndex, setCurrentLevelIndex] = useState(0);
   const [gameState, setGameState] = useState<'menu' | 'playing' | 'gameover' | 'levelclear'>('menu');
@@ -1159,8 +1163,13 @@ export const GameView: React.FC<GameViewProps> = ({ onAwardXp, onRecordGame, the
         ) : (
         /* BORDERLESS AQUARIUM STAGE WITH SKIMMER NET CURSOR */
         <div
+          ref={cleanupFsRef}
           data-cursor-mode="net"
-          className={`relative rounded-2xl bg-[#E5F2F0] dark:bg-[#091C25] text-[#0B1E27] dark:text-[#EDEBE3] border border-[#0B1E27]/12 dark:border-[#82AAA1]/15 shadow-2xl overflow-hidden min-h-[590px] flex flex-col justify-between select-none transition-all duration-300 ${
+          className={`bg-[#E5F2F0] dark:bg-[#091C25] text-[#0B1E27] dark:text-[#EDEBE3] border border-[#0B1E27]/12 dark:border-[#82AAA1]/15 shadow-2xl overflow-hidden flex flex-col justify-between select-none transition-all duration-300 ${
+            isCleanupFullscreen
+              ? 'fixed inset-0 z-50 w-screen h-[100dvh] rounded-none'
+              : 'relative rounded-2xl min-h-[590px]'
+          } ${
             damageFlash ? 'ring-4 ring-inset ring-[#B84F3C]/85 dark:ring-[#D98270]/85' : ''
           }`}
         >
@@ -1252,6 +1261,15 @@ export const GameView: React.FC<GameViewProps> = ({ onAwardXp, onRecordGame, the
                 <Timer className="w-3.5 h-3.5" />
                 {String(timeLeft).padStart(2, '0')}s
               </span>
+              <button
+                type="button"
+                onClick={toggleCleanupFullscreen}
+                className="px-2.5 py-1.5 rounded-lg bg-[#ECEAE1] hover:bg-[#DFDDD2] text-[#0B1E27] dark:bg-[#102B38] dark:hover:bg-[#17485A] dark:text-[#EDEBE3] font-medium flex items-center gap-1.5 cursor-pointer transition-colors"
+                title={isCleanupFullscreen ? 'Keluar Layar Penuh (Esc)' : 'Layar Penuh'}
+              >
+                {isCleanupFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                <span className="hidden sm:inline">{isCleanupFullscreen ? 'Keluar' : 'Fullscreen'}</span>
+              </button>
             </div>
           </div>
 

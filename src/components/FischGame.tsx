@@ -10,9 +10,12 @@ import {
   Coins,
   Fish,
   Lock,
+  Maximize2,
+  Minimize2,
   Moon,
   PackageOpen,
   Search,
+  Ship,
   ShoppingBag,
   Sparkles,
   Sun,
@@ -23,8 +26,10 @@ import {
   Waves,
 } from 'lucide-react';
 import type { ThemeMode } from '../hooks/useTheme';
+import { useGameFullscreen } from '../hooks/useGameFullscreen';
 import {
   FISCH_BAITS,
+  FISCH_BOATS,
   FISCH_ENCHANTS,
   FISCH_ISLANDS,
   FISCH_MUTATIONS,
@@ -43,6 +48,7 @@ import {
   applyFischXp,
   calculateFishSellValue,
   findBait,
+  findBoat,
   findEnchant,
   findRod,
   FischCaughtItem,
@@ -132,6 +138,7 @@ export const FischGame: React.FC<FischGameProps> = ({
 
   const dockSectionRef = useRef<HTMLDivElement | null>(null);
   const recordedSessionRef = useRef(false);
+  const { containerRef: fischFsRef, isFullscreen, toggleFullscreen } = useGameFullscreen();
 
   // Mutable 60fps Engine State
   const engineRef = useRef<FischMutableEngineState>({
@@ -172,6 +179,7 @@ export const FischGame: React.FC<FischGameProps> = ({
     [save.currentIslandId]
   );
   const equippedRod = useMemo(() => findRod(save.equippedRodId), [save.equippedRodId]);
+  const equippedBoat = useMemo(() => findBoat(save.equippedBoatId), [save.equippedBoatId]);
   const equippedBait = useMemo(() => {
     if (!save.equippedBaitId) return null;
     if ((save.baitCounts[save.equippedBaitId] ?? 0) <= 0) return null;
@@ -707,6 +715,50 @@ export const FischGame: React.FC<FischGameProps> = ({
     showTempBanner(`Berhasil membeli & memasang ${rod.name}!`);
   };
 
+  const handleBuyOrEquipBoat = (boatId: string) => {
+    const boat = findBoat(boatId);
+    if (save.ownedBoats.includes(boat.id)) {
+      soundEffects.playBubblePop();
+      setSave((prev) => ({ ...prev, equippedBoatId: boat.id }));
+      showTempBanner(`Kapal aktif diganti ke ${boat.name}!`);
+      return;
+    }
+    if (save.level < boat.minLevel) {
+      soundEffects.playWarning();
+      showTempBanner(`Membutuhkan Level ${boat.minLevel} untuk membeli ${boat.name}.`);
+      return;
+    }
+    if (save.credits < boat.price) {
+      soundEffects.playWarning();
+      showTempBanner(`Saldo kurang! Butuh ${formatCredits(boat.price)}.`);
+      return;
+    }
+    soundEffects.playFischCatch(true);
+    setSave((prev) => ({
+      ...prev,
+      credits: prev.credits - boat.price,
+      ownedBoats: [...prev.ownedBoats, boat.id],
+      equippedBoatId: boat.id,
+    }));
+    showTempBanner(`Berhasil membeli & meluncurkan ${boat.name}! Naik kapal di dermaga [B].`);
+  };
+
+  const handleSailToOutpost = useCallback(
+    (islandId: string) => {
+      const target = FISCH_ISLANDS.find((i) => i.id === islandId);
+      if (!target) return;
+      if (saveRef.current.level < target.minLevel) {
+        soundEffects.playWarning();
+        showTempBanner(`Butuh Level ${target.minLevel} untuk berlabuh di ${target.name}.`);
+        return;
+      }
+      soundEffects.playBubblePop();
+      setSave((prev) => ({ ...prev, currentIslandId: target.id }));
+      showTempBanner(`Berhasil berlabuh di ${target.name}!`);
+    },
+    [showTempBanner]
+  );
+
   const handleBuyBait = (baitId: string, qty: number) => {
     const bait = findBait(baitId);
     if (!bait || !bait.shopPrice) return;
@@ -961,7 +1013,14 @@ export const FischGame: React.FC<FischGameProps> = ({
   const xpPct = Math.min(100, Math.round((save.xp / xpNeeded) * 100));
 
   return (
-    <div className="rounded-2xl bg-[#F7F6F1] dark:bg-[#091C25] text-[#0B1E27] dark:text-[#EDEBE3] border border-[#0B1E27]/12 dark:border-[#82AAA1]/18 shadow-2xl overflow-hidden select-none transition-colors duration-300">
+    <div
+      ref={fischFsRef}
+      className={`bg-[#F7F6F1] dark:bg-[#091C25] text-[#0B1E27] dark:text-[#EDEBE3] border border-[#0B1E27]/12 dark:border-[#82AAA1]/18 shadow-2xl select-none transition-colors duration-300 ${
+        isFullscreen
+          ? 'fixed inset-0 z-50 w-screen h-[100dvh] rounded-none overflow-y-auto flex flex-col justify-between'
+          : 'rounded-2xl overflow-hidden'
+      }`}
+    >
       {/* Top World & Player HUD */}
       <div className="px-4 sm:px-5 py-3 bg-[#ECEAE1]/95 dark:bg-[#061116]/90 border-b border-[#0B1E27]/10 dark:border-[#82AAA1]/15 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex flex-wrap items-center gap-4 tabular-nums">
@@ -1031,6 +1090,13 @@ export const FischGame: React.FC<FischGameProps> = ({
           >
             {save.soundMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
           </button>
+          <button
+            onClick={toggleFullscreen}
+            className="p-1.5 rounded-lg hover:bg-[#0B1E27]/10 dark:hover:bg-[#EDEBE3]/10 text-[#425B66] dark:text-[#98ACB5] cursor-pointer"
+            title={isFullscreen ? 'Keluar Layar Penuh (Esc)' : 'Layar Penuh'}
+          >
+            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+          </button>
         </div>
       </div>
 
@@ -1039,6 +1105,8 @@ export const FischGame: React.FC<FischGameProps> = ({
         theme={theme}
         island={currentIsland}
         rod={equippedRod}
+        boat={equippedBoat}
+        playerLevel={save.level}
         timeOfDay={timeOfDay}
         weather={weather}
         auroraActive={auroraActive}
@@ -1051,6 +1119,9 @@ export const FischGame: React.FC<FischGameProps> = ({
         onReleaseInput={releaseInput}
         onTriggerShake={triggerShake}
         onInteractNpc={handleInteractNpc}
+        onSailToOutpost={handleSailToOutpost}
+        isFullscreen={isFullscreen}
+        onToggleFullscreen={toggleFullscreen}
         statusBanner={statusBanner}
       >
         {/* Catch Showcase Floating Summary Card (No backdrop-filter over WebGL) */}
@@ -1187,7 +1258,14 @@ export const FischGame: React.FC<FischGameProps> = ({
           </span>
         </div>
 
-        <div className="flex items-center gap-3 tabular-nums">
+        <div className="flex flex-wrap items-center gap-3 tabular-nums">
+          <span className="flex items-center gap-1.5 text-[#425B66] dark:text-[#98ACB5]">
+            <Ship className="w-3.5 h-3.5 text-[#1D6664] dark:text-[#82AAA1]" />
+            <strong className="text-[#0B1E27] dark:text-[#EDEBE3]">{equippedBoat.name}</strong>
+          </span>
+          <span className="text-[#0B1E27]/20 dark:text-[#EDEBE3]/20" aria-hidden="true">
+            ·
+          </span>
           <span className="text-[#425B66] dark:text-[#98ACB5]">
             Umpan:{' '}
             <strong className="text-[#0B1E27] dark:text-[#EDEBE3]">
@@ -1342,8 +1420,13 @@ export const FischGame: React.FC<FischGameProps> = ({
                   >
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between gap-2 text-[11px]">
-                        <span className="font-semibold text-[#1D6664] dark:text-[#82AAA1]">
-                          Min Lv. {isl.minLevel}
+                        <span className="font-semibold text-[#1D6664] dark:text-[#82AAA1] flex items-center gap-1">
+                          <span>Min Lv. {isl.minLevel}</span>
+                          {isl.requiresBoat && (
+                            <span className="text-[#876B3A] dark:text-[#F6C453] inline-flex items-center gap-0.5">
+                              · <Ship className="w-3 h-3" /> Kapal
+                            </span>
+                          )}
                         </span>
                         <span className="tabular-nums text-[#425B66] dark:text-[#98ACB5]">
                           {islandFound}/{islandTotal} Ikan
@@ -1356,6 +1439,11 @@ export const FischGame: React.FC<FischGameProps> = ({
                       {isl.dangerNote && (
                         <p className="text-[11px] text-[#B84F3C] dark:text-[#D98270] font-medium">
                           {isl.dangerNote}
+                        </p>
+                      )}
+                      {isl.requiresBoat && isl.outpostCoords && !isHere && (
+                        <p className="text-[11px] text-[#1E3A5F] dark:text-[#63B3ED] font-medium">
+                          Atau layari langsung dengan Kapal (tekan [B] di dermaga menuju koordinat {isl.outpostCoords.x}, {isl.outpostCoords.z}).
                         </p>
                       )}
                     </div>
@@ -1378,7 +1466,9 @@ export const FischGame: React.FC<FischGameProps> = ({
                       {isHere
                         ? 'Lokasi Aktif'
                         : unlocked
-                        ? 'Berlayar ke Pulau'
+                        ? isl.requiresBoat
+                          ? 'Berlayar ke Pulau'
+                          : 'Berlayar ke Pulau'
                         : `Terbuka di Lv. ${isl.minLevel}`}
                     </button>
                   </div>
@@ -1641,6 +1731,80 @@ export const FischGame: React.FC<FischGameProps> = ({
                 >
                   Quality Crate (550 C$)
                 </button>
+              </div>
+            </div>
+
+            {/* Galangan Kapal — Tukang Kapal */}
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h4 className="font-display text-base font-bold flex items-center gap-2">
+                  <Ship className="w-4 h-4 text-[#1D6664] dark:text-[#82AAA1]" />
+                  <span>Galangan Kapal · Tukang Kapal ({FISCH_BOATS.length} Kapal 3D)</span>
+                </h4>
+                <span className="text-[11px] text-[#425B66] dark:text-[#98ACB5]">
+                  Dekati kapal di sisi kiri ujung dermaga dan tekan [B] untuk berlayar ke pulau atol!
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                {FISCH_BOATS.map((boat) => {
+                  const owned = save.ownedBoats.includes(boat.id);
+                  const equipped = save.equippedBoatId === boat.id;
+                  const levelOk = save.level >= boat.minLevel;
+
+                  return (
+                    <div
+                      key={boat.id}
+                      className={`rounded-xl p-3.5 border flex flex-col justify-between gap-3 ${
+                        equipped
+                          ? 'bg-white dark:bg-[#0E2632] border-[#267472] dark:border-[#82AAA1]'
+                          : 'bg-[#ECEAE1]/50 dark:bg-[#061116]/60 border-[#0B1E27]/10 dark:border-[#82AAA1]/15'
+                      }`}
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="w-3 h-3 rounded-full shrink-0"
+                              style={{ backgroundColor: boat.colorHex }}
+                            />
+                            <span className="font-display font-bold text-sm">{boat.name}</span>
+                          </div>
+                          <span className="text-[11px] font-semibold text-[#876B3A] dark:text-[#F6C453] tabular-nums">
+                            {owned ? 'Dimiliki' : formatCredits(boat.price)}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-[#1D6664] dark:text-[#82AAA1] font-medium tabular-nums">
+                          Kecepatan {boat.speed} kn · Kemudi {boat.turnSpeed}× · Min Lv. {boat.minLevel}
+                        </div>
+                        <p className="text-[11px] text-[#425B66] dark:text-[#98ACB5] leading-snug">
+                          {boat.description}
+                        </p>
+                      </div>
+
+                      <button
+                        disabled={equipped || (!owned && (!levelOk || save.credits < boat.price))}
+                        onClick={() => handleBuyOrEquipBoat(boat.id)}
+                        className={`w-full py-2 rounded-lg text-xs font-semibold ${
+                          equipped
+                            ? 'bg-[#267472]/15 text-[#1D6664] dark:text-[#82AAA1] cursor-default'
+                            : owned
+                            ? 'bg-[#ECEAE1] hover:bg-[#DFDDD2] dark:bg-[#102B38] text-[#0B1E27] dark:text-[#EDEBE3] cursor-pointer'
+                            : levelOk && save.credits >= boat.price
+                            ? 'bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1] cursor-pointer'
+                            : 'bg-[#0B1E27]/10 dark:bg-[#EDEBE3]/10 text-[#5F7782] cursor-not-allowed'
+                        }`}
+                      >
+                        {equipped
+                          ? 'Kapal Ditambatkan'
+                          : owned
+                          ? 'Luncurkan Kapal'
+                          : !levelOk
+                          ? `Butuh Lv. ${boat.minLevel}`
+                          : `Beli (${formatCredits(boat.price)})`}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -2034,7 +2198,7 @@ export const FischGame: React.FC<FischGameProps> = ({
                   Bestiary Samudra — {discoveredCount} / {FISCH_SPECIES.length} Spesies ({bestiaryPercent}%)
                 </h4>
                 <p className="text-xs text-[#425B66] dark:text-[#98ACB5]">
-                  Lengkapi seluruh entri di 8 pulau termasuk ikan legendaris, mutasi langka, geode, dan relik.
+                  Lengkapi seluruh entri di {FISCH_ISLANDS.length} pulau termasuk ikan legendaris, mutasi langka, geode, dan relik.
                 </p>
               </div>
               <div className="w-48 h-2.5 rounded-full bg-[#DCE6E4] dark:bg-[#102B38] overflow-hidden">

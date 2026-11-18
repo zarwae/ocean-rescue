@@ -1,5 +1,6 @@
 import {
   FISCH_BAITS,
+  FISCH_BOATS,
   FISCH_ENCHANTS,
   FISCH_ISLANDS,
   FISCH_MUTATIONS,
@@ -7,6 +8,7 @@ import {
   FISCH_RODS,
   FISCH_SPECIES,
   FischBait,
+  FischBoat,
   FischEnchant,
   FischRarity,
   FischRod,
@@ -79,6 +81,8 @@ export interface FischSaveState {
   equippedRodId: string;
   equippedBaitId: string | null;
   ownedRods: string[];
+  equippedBoatId: string;
+  ownedBoats: string[];
   rodEnchants: Record<string, string>;
   baitCounts: Record<string, number>;
   crateCounts: Record<string, number>;
@@ -571,6 +575,8 @@ export function createInitialFischSave(): FischSaveState {
     equippedRodId: 'flimsy',
     equippedBaitId: 'worm',
     ownedRods: ['flimsy'],
+    equippedBoatId: 'rowboat',
+    ownedBoats: ['rowboat'],
     rodEnchants: {},
     baitCounts: {
       worm: 10,
@@ -606,6 +612,11 @@ export function loadFischSave(): FischSaveState {
         Array.isArray(parsed.ownedRods) && parsed.ownedRods.length > 0
           ? parsed.ownedRods
           : base.ownedRods,
+      equippedBoatId: parsed.equippedBoatId ?? base.equippedBoatId,
+      ownedBoats:
+        Array.isArray(parsed.ownedBoats) && parsed.ownedBoats.length > 0
+          ? parsed.ownedBoats
+          : base.ownedBoats,
       baitCounts: parsed.baitCounts ?? base.baitCounts,
       crateCounts: parsed.crateCounts ?? base.crateCounts,
       inventory: Array.isArray(parsed.inventory) ? parsed.inventory : [],
@@ -646,4 +657,8 @@ export function findBait(baitId: string | null): FischBait | null {
 export function findEnchant(enchantId: string | undefined): FischEnchant | null {
   if (!enchantId) return null;
   return FISCH_ENCHANTS.find((e) => e.id === enchantId) ?? null;
+}
+
+export function findBoat(boatId: string | undefined): FischBoat {
+  return FISCH_BOATS.find((b) => b.id === boatId) ?? FISCH_BOATS[0];
 }

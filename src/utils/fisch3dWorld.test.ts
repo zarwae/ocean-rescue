@@ -4,9 +4,11 @@ import {
   clampPlayerPosition,
   computeBobberTargetPosition,
   findNearestNpc,
+  findNearestOutpostBeacon,
   FISCH_NPC_SPAWNS,
   getGroundHeightAt,
   isOnWoodenPier,
+  resolveBoatPosition,
   waterHeightAt,
 } from './fisch3dWorld.ts';
 
@@ -53,12 +55,30 @@ test('findNearestNpc detects NPCs within interaction distance', () => {
   assert.equal(none, null);
 });
 
-test('computeBobberTargetPosition always projects bobber into open water', () => {
-  // Even if facing inland (-Z), bobber projects safely out to open sea (+Z)
-  const inlandFacing = computeBobberTargetPosition(0, 5, Math.PI, 0.8);
-  assert.ok(inlandFacing.z >= 12);
+test('computeBobberTargetPosition strictly projects bobber along player yaw into water', () => {
+  // Facing back (-Z, yaw = PI) casts strictly behind player across island into open water (-Z)
+  const backFacing = computeBobberTargetPosition(0, 5, Math.PI, 0.8);
+  assert.ok(backFacing.z < -12, `Expected z < -12 when facing PI, got ${backFacing.z}`);
+  assert.ok(Math.abs(backFacing.x) < 0.01);
 
-  // Facing ocean (+Z) projects cleanly ahead
+  // Facing right (+X, yaw = PI / 2) casts strictly to +X
+  const sideFacing = computeBobberTargetPosition(0, 10, Math.PI / 2, 0.7);
+  assert.ok(sideFacing.x > 10);
+  assert.ok(Math.abs(sideFacing.z - 10) < 0.01);
+
+  // Facing ocean (+Z, yaw = 0) projects cleanly ahead
   const seaFacing = computeBobberTargetPosition(0, 10, 0, 0.86);
   assert.ok(seaFacing.z > 14);
+});
+
+test('resolveBoatPosition collides cleanly around pier and findNearestOutpostBeacon detects boat islands', () => {
+  const blockedPier = resolveBoatPosition(-6.8, 13.5, 0, 10.5);
+  assert.ok(blockedPier.z >= 12.9 || blockedPier.x !== 0);
+
+  const outpost = findNearestOutpostBeacon(-48, 42, 15.5);
+  assert.ok(outpost);
+  assert.equal(outpost.islandId, 'forsaken_shores');
+
+  const noOutpost = findNearestOutpostBeacon(0, 15, 15.5);
+  assert.equal(noOutpost, null);
 });

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 export const WATER_BASE_Y = 0;
 
-export type FischNpcRole = 'merchant' | 'appraiser' | 'angler' | 'merlin' | 'altar' | 'quest';
+export type FischNpcRole = 'merchant' | 'appraiser' | 'angler' | 'merlin' | 'altar' | 'quest' | 'shipwright';
 
 export interface FischNpcSpawn {
   id: string;
@@ -89,6 +89,56 @@ export const FISCH_NPC_SPAWNS: FischNpcSpawn[] = [
     yaw: 1.1,
     shirtHex: '#2A7B4F',
     accentHex: '#5EC48B',
+  },
+  {
+    id: 'npc_shipwright',
+    role: 'shipwright',
+    name: 'Tukang Kapal',
+    subtitle: 'Galangan & Beli Kapal',
+    targetTab: 'shop',
+    x: 3.9,
+    z: 9.2,
+    yaw: -0.9,
+    shirtHex: '#9A442C',
+    accentHex: '#FBBF24',
+  },
+];
+
+export const DEFAULT_MOORED_BOAT_POS = { x: -6.8, z: 10.2, yaw: 0 };
+
+export interface FischOutpostBeacon {
+  islandId: 'forsaken_shores' | 'ancient_isle' | 'the_depths';
+  name: string;
+  minLevel: number;
+  x: number;
+  z: number;
+  accentHex: string;
+}
+
+export const FISCH_OUTPOST_BEACONS: FischOutpostBeacon[] = [
+  {
+    islandId: 'forsaken_shores',
+    name: 'Forsaken Shores',
+    minLevel: 6,
+    x: -48,
+    z: 36,
+    accentHex: '#F97316',
+  },
+  {
+    islandId: 'ancient_isle',
+    name: 'Ancient Isle',
+    minLevel: 12,
+    x: 50,
+    z: 38,
+    accentHex: '#34D399',
+  },
+  {
+    islandId: 'the_depths',
+    name: 'The Depths Atoll',
+    minLevel: 18,
+    x: 0,
+    z: 68,
+    accentHex: '#38BDF8',
   },
 ];
 
@@ -206,23 +256,74 @@ export function findNearestNpc(
   return closest;
 }
 
+export function isBoatBlocked(x: number, z: number): boolean {
+  // World ocean bounds inside 280x280 water plane
+  if (Math.abs(x) > 96 || z < -76 || z > 96) return true;
+  // Main wooden pier + mooring clearance
+  if (Math.abs(x) <= 3.8 && z >= -1.5 && z <= 12.8) return true;
+  if (Math.abs(x) <= 6.0 && z >= 7.2 && z <= 12.9) return true;
+  // Main island plateau ellipse with boat hull margin
+  const dx = x / 15.6;
+  const dz = (z + 6.5) / 11.2;
+  if (dx * dx + dz * dz <= 1.0) return true;
+  // Outpost island core collision cylinders
+  for (const beacon of FISCH_OUTPOST_BEACONS) {
+    if (Math.hypot(x - beacon.x, z - beacon.z) < 7.2) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function resolveBoatPosition(
+  prevX: number,
+  prevZ: number,
+  nextX: number,
+  nextZ: number
+): { x: number; z: number } {
+  if (!isBoatBlocked(nextX, nextZ)) return { x: nextX, z: nextZ };
+  if (!isBoatBlocked(nextX, prevZ)) return { x: nextX, z: prevZ };
+  if (!isBoatBlocked(prevX, nextZ)) return { x: prevX, z: nextZ };
+  return { x: prevX, z: prevZ };
+}
+
+export function findNearestOutpostBeacon(
+  x: number,
+  z: number,
+  maxDistance = 15.5
+): FischOutpostBeacon | null {
+  let closest: FischOutpostBeacon | null = null;
+  let bestD2 = maxDistance * maxDistance;
+  for (const b of FISCH_OUTPOST_BEACONS) {
+    const d2 = (b.x - x) * (b.x - x) + (b.z - z) * (b.z - z);
+    if (d2 <= bestD2) {
+      bestD2 = d2;
+      closest = b;
+    }
+  }
+  return closest;
+}
+
 export function computeBobberTargetPosition(
   playerX: number,
   playerZ: number,
   playerYaw: number,
   castPower: number
 ): { x: number; z: number } {
-  const dist = 5.5 + castPower * 10.5;
+  // Always cast strictly along the player's actual facing vector (sin(yaw), cos(yaw))
   const dirX = Math.sin(playerYaw);
   const dirZ = Math.cos(playerYaw);
+  let dist = 5.5 + castPower * 10.5;
   let targetX = playerX + dirX * dist;
   let targetZ = playerZ + dirZ * dist;
 
-  // If the cast lands inland behind the shore, project forward out into open water (+Z)
-  if (isWalkablePosition(targetX, targetZ) || targetZ < 1.2) {
-    targetX = playerX + dirX * 4.5;
-    targetZ = Math.max(12.2, playerZ + 7.5 + castPower * 7.5);
+  // If the cast distance happens to land over island/pier terrain, extend along the SAME ray until hitting open water
+  while (isWalkablePosition(targetX, targetZ) && dist < 34) {
+    dist += 1.5;
+    targetX = playerX + dirX * dist;
+    targetZ = playerZ + dirZ * dist;
   }
+
   return { x: targetX, z: targetZ };
 }
 
