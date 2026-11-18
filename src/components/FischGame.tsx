@@ -4,6 +4,8 @@ import {
   Award,
   Backpack,
   BookOpen,
+  ChevronDown,
+  ChevronUp,
   Compass,
   Coins,
   Fish,
@@ -56,7 +58,13 @@ import {
   rollCatchResult,
   saveFischSave,
 } from '../utils/fischEngine';
-import { drawFischScene, FischPhase } from '../utils/fischRenderer';
+import { FischPhase } from '../utils/fischRenderer';
+import { FischNpcSpawn } from '../utils/fisch3dWorld';
+import {
+  CatchVisualTrigger,
+  Fisch3DViewport,
+  FischMutableEngineState,
+} from './Fisch3DViewport';
 import { soundEffects } from '../utils/soundEffects';
 
 interface FischGameProps {
@@ -111,6 +119,8 @@ export const FischGame: React.FC<FischGameProps> = ({
   const [shakeTarget, setShakeTarget] = useState<ShakeTarget | null>(null);
   const [statusBanner, setStatusBanner] = useState<string | null>(null);
   const [catchShowcase, setCatchShowcase] = useState<CatchShowcase | null>(null);
+  const [lastCatchVisual, setLastCatchVisual] = useState<CatchVisualTrigger | null>(null);
+  const [dockCollapsed, setDockCollapsed] = useState<boolean>(false);
   const [appraiseSelectedUid, setAppraiseSelectedUid] = useState<string>('');
   const [enchantTargetRodId, setEnchantTargetRodId] = useState<string>(() => loadFischSave().equippedRodId);
 
@@ -120,22 +130,20 @@ export const FischGame: React.FC<FischGameProps> = ({
   const [bestiaryRarityFilter, setBestiaryRarityFilter] = useState<string>('all');
   const [bestiaryStatusFilter, setBestiaryStatusFilter] = useState<'all' | 'caught' | 'missing'>('all');
 
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const dockSectionRef = useRef<HTMLDivElement | null>(null);
   const recordedSessionRef = useRef(false);
-  const themeRef = useRef<ThemeMode>(theme);
-  themeRef.current = theme;
 
   // Mutable 60fps Engine State
-  const engineRef = useRef({
-    phase: 'idle' as FischPhase,
+  const engineRef = useRef<FischMutableEngineState>({
+    phase: 'idle',
     castPower: 0,
-    castDir: 1 as 1 | -1,
+    castDir: 1,
     perfectCast: false,
     bobberProgress: 0,
     waitRemaining: 0,
     biteRemaining: 0,
     shakeCount: 0,
-    hookedSpecies: null as FischSpecies | null,
+    hookedSpecies: null,
     reelBarCenter: 0.5,
     reelBarVel: 0,
     reelBarWidth: 0.27,
@@ -145,15 +153,6 @@ export const FischGame: React.FC<FischGameProps> = ({
     reelProgress: 0.25,
     reelGrace: 0,
     holdingInput: false,
-    ambientFish: Array.from({ length: 8 }, (_, idx) => ({
-      x: (idx * 0.14 + 0.05) % 1,
-      y: 0.15 + ((idx * 0.23) % 0.72),
-      size: 7 + (idx % 4) * 3,
-      speed: 0.03 + (idx % 3) * 0.015,
-      dir: (idx % 2 === 0 ? 1 : -1) as 1 | -1,
-      color: idx % 2 === 0 ? '#82AAA1' : '#C7B99E',
-    })),
-    splashes: [] as Array<{ x: number; y: number; age: number; maxAge: number }>,
   });
 
   // Persist save changes
@@ -265,15 +264,6 @@ export const FischGame: React.FC<FischGameProps> = ({
     eng.shakeCount += 1;
     eng.waitRemaining = Math.max(0.25, eng.waitRemaining - 1.35);
     soundEffects.playFischShake();
-    const canvas = canvasRef.current;
-    if (canvas) {
-      eng.splashes.push({
-        x: canvas.clientWidth * 0.55,
-        y: canvas.clientHeight * 0.56,
-        age: 0,
-        maxAge: 0.7,
-      });
-    }
     if (eng.waitRemaining > 0.45) {
       spawnShakeButton();
     } else {
@@ -439,6 +429,15 @@ export const FischGame: React.FC<FischGameProps> = ({
 
         updated = applyCatchToQuests(updated, hooked);
 
+        const mutObj = FISCH_MUTATIONS.find((m) => m.id === outcome.mutationId);
+        setLastCatchVisual({
+          id: Date.now(),
+          species: hooked,
+          mutationColorHex: mutObj && mutObj.id !== 'none' ? mutObj.colorHex : null,
+          isGiant: outcome.isGiant,
+          lineSnapped: false,
+        });
+
         setCatchShowcase({
           id: Date.now(),
           item: primaryCaughtItem,
@@ -494,75 +493,11 @@ export const FischGame: React.FC<FischGameProps> = ({
     }
   }, []);
 
-  // Keyboard shortcuts (Space for Cast/Reel, E for Shake)
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.code === 'Space') {
-        if (engineRef.current.phase === 'idle' || engineRef.current.phase === 'reeling') {
-          e.preventDefault();
-          beginCharge();
-        }
-      } else if (e.code === 'KeyE' && engineRef.current.phase === 'waiting') {
-        e.preventDefault();
-        triggerShake();
-      }
-    };
-    const onKeyUp = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
-        releaseInput();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
-    };
-  }, [beginCharge, releaseInput, triggerShake]);
-
-  // 60fps Game & Canvas Loop
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    let rafId = 0;
-    let lastTime = performance.now();
-
-    const loop = (now: number) => {
-      const dt = Math.min(0.05, (now - lastTime) / 1000);
-      lastTime = now;
+  // 60fps Fishing State Stepper (Invoked smoothly inside Fisch3DViewport's Three.js loop)
+  const stepFishing = useCallback(
+    (dt: number, emitSplash: (x: number, y: number, z: number) => void) => {
       const eng = engineRef.current;
 
-      // Resize canvas crisply to HiDPI
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
-      const cw = canvas.clientWidth || 860;
-      const ch = canvas.clientHeight || 390;
-      if (canvas.width !== Math.round(cw * dpr) || canvas.height !== Math.round(ch * dpr)) {
-        canvas.width = Math.round(cw * dpr);
-        canvas.height = Math.round(ch * dpr);
-      }
-
-      // Ambient fish movement
-      for (const f of eng.ambientFish) {
-        f.x += f.speed * f.dir * dt;
-        if (f.x > 1.08) {
-          f.dir = -1;
-          f.x = 1.07;
-        } else if (f.x < -0.08) {
-          f.dir = 1;
-          f.x = -0.07;
-        }
-      }
-
-      // Splash ripples update
-      eng.splashes = eng.splashes
-        .map((sp) => ({ ...sp, age: sp.age + dt }))
-        .filter((sp) => sp.age < sp.maxAge);
-
-      // Phase State Transitions
       if (eng.phase === 'charging') {
         eng.castPower += eng.castDir * 1.15 * dt;
         if (eng.castPower >= 1) {
@@ -581,12 +516,7 @@ export const FischGame: React.FC<FischGameProps> = ({
           eng.waitRemaining = Math.max(1.1, (4.8 - eng.castPower * 1.1) * lureFactor);
           setPhase('waiting');
           soundEffects.playFischSplash();
-          eng.splashes.push({
-            x: Math.min(cw * 0.78, Math.min(cw * 0.24, 210) + 120 + eng.castPower * (cw * 0.36)),
-            y: ch * 0.56,
-            age: 0,
-            maxAge: 0.9,
-          });
+          emitSplash(0, 0, 14);
           spawnShakeButton();
         }
       } else if (eng.phase === 'waiting') {
@@ -651,7 +581,8 @@ export const FischGame: React.FC<FischGameProps> = ({
         // Fish erratic darting AI inside track
         eng.reelFishTimer -= dt;
         if (eng.reelFishTimer <= 0) {
-          eng.reelFishTimer = Math.max(0.22, 1.35 / physics.fishErraticness) * (0.65 + Math.random() * 0.7);
+          eng.reelFishTimer =
+            Math.max(0.22, 1.35 / physics.fishErraticness) * (0.65 + Math.random() * 0.7);
           const span = 0.16 + (eng.hookedSpecies.difficulty / 10) * 0.62;
           const nextTarget = eng.reelFishPos + (Math.random() - 0.5) * span * 2;
           eng.reelFishTarget = Math.max(0.06, Math.min(0.94, nextTarget));
@@ -687,50 +618,22 @@ export const FischGame: React.FC<FischGameProps> = ({
           showTempBanner(`${lostName} terlepas! Jaga bar putih tetap di atas ikan.`);
         }
       }
+    },
+    [finalizeCatchSuccess, showTempBanner, spawnShakeButton]
+  );
 
-      // Render Frame
-      ctx.save();
-      ctx.scale(dpr, dpr);
-      const isOnTarget =
-        eng.phase === 'reeling' &&
-        Math.abs(eng.reelFishPos - eng.reelBarCenter) <= eng.reelBarWidth / 2 + 0.018;
-
-      const s = saveRef.current;
-      const rod = findRod(s.equippedRodId);
-      const island = FISCH_ISLANDS.find((i) => i.id === s.currentIslandId) ?? FISCH_ISLANDS[0];
-
-      drawFischScene(ctx, {
-        width: cw,
-        height: ch,
-        timeSec: now / 1000,
-        isDarkMode: themeRef.current === 'dark',
-        island,
-        rod,
-        timeOfDay: worldRef.current.timeOfDay,
-        weather: worldRef.current.weather,
-        auroraActive: worldRef.current.auroraActive,
-        phase: eng.phase,
-        castPower: eng.castPower,
-        bobberProgress: eng.bobberProgress,
-        bobberWaveOffset: 0,
-        shakeCount: eng.shakeCount,
-        reelBarCenter: eng.reelBarCenter,
-        reelBarWidth: eng.reelBarWidth,
-        reelFishPos: eng.reelFishPos,
-        reelProgress: eng.reelProgress,
-        reelOnTarget: isOnTarget,
-        hookedSpecies: eng.hookedSpecies,
-        ambientFish: eng.ambientFish,
-        splashes: eng.splashes,
-      });
-      ctx.restore();
-
-      rafId = window.requestAnimationFrame(loop);
-    };
-
-    rafId = window.requestAnimationFrame(loop);
-    return () => window.cancelAnimationFrame(rafId);
-  }, [finalizeCatchSuccess, showTempBanner, spawnShakeButton]);
+  const handleInteractNpc = useCallback(
+    (npc: FischNpcSpawn) => {
+      soundEffects.playBubblePop();
+      setActiveTab(npc.targetTab);
+      setDockCollapsed(false);
+      showTempBanner(`${npc.name}: ${npc.subtitle}`);
+      window.setTimeout(() => {
+        dockSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 60);
+    },
+    [showTempBanner]
+  );
 
   // Economy & NPC Actions
   const handleSellFish = (uid: string) => {
@@ -1131,87 +1034,31 @@ export const FischGame: React.FC<FischGameProps> = ({
         </div>
       </div>
 
-      {/* Main 60fps Interactive Fishing Stage */}
-      <div
-        data-cursor-mode="hidden"
-        className="relative w-full h-[380px] sm:h-[410px] overflow-hidden border-b border-[#0B1E27]/10 dark:border-[#82AAA1]/15 cursor-crosshair"
-        onMouseDown={(e) => {
-          if (e.button === 0) beginCharge();
-        }}
-        onMouseUp={() => releaseInput()}
-        onMouseLeave={() => {
-          if (engineRef.current.phase === 'charging' || engineRef.current.phase === 'reeling') {
-            releaseInput();
-          }
-        }}
-        onTouchStart={() => beginCharge()}
-        onTouchEnd={() => releaseInput()}
+      {/* Main 3D Roblox Interactive World Stage */}
+      <Fisch3DViewport
+        theme={theme}
+        island={currentIsland}
+        rod={equippedRod}
+        timeOfDay={timeOfDay}
+        weather={weather}
+        auroraActive={auroraActive}
+        phase={phase}
+        engineRef={engineRef}
+        shakeTarget={shakeTarget}
+        lastCatchVisual={lastCatchVisual}
+        onStepFishing={stepFishing}
+        onBeginCastOrReel={beginCharge}
+        onReleaseInput={releaseInput}
+        onTriggerShake={triggerShake}
+        onInteractNpc={handleInteractNpc}
+        statusBanner={statusBanner}
       >
-        <canvas ref={canvasRef} className="w-full h-full block" />
-
-        {/* Phase Hint Banner Top Left */}
-        <div className="absolute top-3 left-3 z-10 pointer-events-none px-3 py-1.5 rounded-lg bg-[#F7F6F1]/90 dark:bg-[#061116]/85 border border-[#0B1E27]/12 dark:border-[#82AAA1]/25 text-xs">
-          {phase === 'idle' && (
-            <span>
-              Tahan <strong className="text-[#1D6664] dark:text-[#82AAA1]">Klik Kiri / Spasi</strong> di air untuk melempar kail
-            </span>
-          )}
-          {phase === 'charging' && (
-            <span className="text-[#1D6664] dark:text-[#5EC48B] font-semibold">
-              Lepas di zona hijau untuk Perfect Cast!
-            </span>
-          )}
-          {phase === 'casting' && <span>Melempar kail ke perairan {currentIsland.name}...</span>}
-          {phase === 'waiting' && (
-            <span>
-              Menunggu umpan disambar · Klik tombol <strong>Shake!</strong> atau tekan <strong>E</strong> untuk mempercepat!
-            </span>
-          )}
-          {phase === 'biting' && (
-            <span className="text-[#876B3A] dark:text-[#F6C453] font-bold">
-              IKUT TARIKAN! Bersiap menahan bar Reel...
-            </span>
-          )}
-          {phase === 'reeling' && (
-            <span className="text-[#1D6664] dark:text-[#82AAA1] font-semibold">
-              Tahan &amp; Lepas Klik/Spasi — jaga bar putih di atas ikan!
-            </span>
-          )}
-        </div>
-
-        {/* Clickable Shake Prompt (Authentic Fisch Wait Mechanic) */}
-        {phase === 'waiting' && shakeTarget && (
-          <button
-            type="button"
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              triggerShake();
-            }}
-            style={{
-              left: `${shakeTarget.xPercent}%`,
-              top: `${shakeTarget.yPercent}%`,
-              transform: 'translate(-50%, -50%)',
-            }}
-            className="absolute z-20 px-4 py-2 rounded-full bg-[#F7F6F1] dark:bg-[#061116] text-[#0B1E27] dark:text-[#EDEBE3] border-2 border-[#267472] dark:border-[#82AAA1] font-display font-bold text-xs shadow-xl hover:scale-105 active:scale-95 transition-transform cursor-pointer"
-          >
-            Shake! [E]
-          </button>
-        )}
-
-        {/* Quick Status / Economy Banner */}
-        {statusBanner && (
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none px-4 py-2 rounded-xl bg-[#0B1E27]/90 dark:bg-[#EDEBE3]/95 text-[#F7F6F1] dark:text-[#061116] text-xs font-semibold shadow-xl whitespace-nowrap max-w-[92%] truncate">
-            {statusBanner}
-          </div>
-        )}
-
-        {/* Catch Showcase Floating Summary Card */}
+        {/* Catch Showcase Floating Summary Card (No backdrop-filter over WebGL) */}
         {catchShowcase && phase === 'idle' && (
           <div
-            onMouseDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
-            className="absolute top-3 right-3 z-20 w-72 sm:w-80 rounded-xl bg-[#F7F6F1]/95 dark:bg-[#061116]/92 border border-[#0B1E27]/15 dark:border-[#82AAA1]/30 p-3.5 shadow-2xl space-y-2"
+            className="absolute top-14 right-3 z-20 w-72 sm:w-80 rounded-xl bg-[#F7F6F1] dark:bg-[#061116] border border-[#0B1E27]/20 dark:border-[#82AAA1]/35 p-3.5 shadow-2xl space-y-2"
           >
             {catchShowcase.lineSnapped ? (
               <>
@@ -1315,7 +1162,7 @@ export const FischGame: React.FC<FischGameProps> = ({
             )}
           </div>
         )}
-      </div>
+      </Fisch3DViewport>
 
       {/* Equipped Loadout Strip */}
       <div className="px-4 sm:px-5 py-3 bg-[#ECEAE1]/75 dark:bg-[#061116]/75 border-b border-[#0B1E27]/10 dark:border-[#82AAA1]/15 flex flex-wrap items-center justify-between gap-3 text-xs">
@@ -1372,38 +1219,57 @@ export const FischGame: React.FC<FischGameProps> = ({
         </div>
       </div>
 
-      {/* Sub-Navigation Tabs (6 Functional Areas) */}
-      <div className="px-4 sm:px-5 pt-3 border-b border-[#0B1E27]/10 dark:border-[#82AAA1]/15 flex items-center gap-1 overflow-x-auto">
-        {(
-          [
-            { id: 'islands', label: 'Pulau & Cuaca', icon: Compass },
-            { id: 'inventory', label: `Tas (${save.inventory.length})`, icon: Backpack },
-            { id: 'shop', label: 'Merchant & Toko', icon: ShoppingBag },
-            { id: 'altar', label: 'Appraiser & Altar', icon: Wand2 },
-            { id: 'quests', label: 'Quest NPC', icon: Award },
-            { id: 'bestiary', label: `Bestiary (${discoveredCount}/${FISCH_SPECIES.length})`, icon: BookOpen },
-          ] as const
-        ).map((tab) => {
-          const Icon = tab.icon;
-          const active = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-3.5 py-2.5 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                active
-                  ? 'border-[#1D6664] text-[#1D6664] dark:border-[#82AAA1] dark:text-[#82AAA1]'
-                  : 'border-transparent text-[#425B66] hover:text-[#0B1E27] dark:text-[#8FA3AC] dark:hover:text-[#EDEBE3]'
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
+      {/* Sub-Navigation Tabs (6 Functional Areas) + Collapsible Dock Toggle */}
+      <div
+        ref={dockSectionRef}
+        className="px-4 sm:px-5 pt-2.5 border-b border-[#0B1E27]/10 dark:border-[#82AAA1]/15 flex items-center justify-between gap-2"
+      >
+        <div className="flex items-center gap-1 overflow-x-auto">
+          {(
+            [
+              { id: 'islands', label: 'Pulau & Cuaca', icon: Compass },
+              { id: 'inventory', label: `Tas (${save.inventory.length})`, icon: Backpack },
+              { id: 'shop', label: 'Merchant & Toko', icon: ShoppingBag },
+              { id: 'altar', label: 'Appraiser & Altar', icon: Wand2 },
+              { id: 'quests', label: 'Quest NPC', icon: Award },
+              { id: 'bestiary', label: `Bestiary (${discoveredCount}/${FISCH_SPECIES.length})`, icon: BookOpen },
+            ] as const
+          ).map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id && !dockCollapsed;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  setDockCollapsed(false);
+                }}
+                className={`px-3.5 py-2.5 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  active
+                    ? 'border-[#1D6664] text-[#1D6664] dark:border-[#82AAA1] dark:text-[#82AAA1]'
+                    : 'border-transparent text-[#425B66] hover:text-[#0B1E27] dark:text-[#8FA3AC] dark:hover:text-[#EDEBE3]'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setDockCollapsed((c) => !c)}
+          className="px-2.5 py-1.5 mb-1 rounded-lg bg-[#ECEAE1] hover:bg-[#DFDDD2] dark:bg-[#0E2632] dark:hover:bg-[#163646] text-[11px] font-semibold flex items-center gap-1 shrink-0 cursor-pointer"
+          title={dockCollapsed ? 'Tampilkan Panel Bawah' : 'Sembunyikan Panel Bawah'}
+        >
+          {dockCollapsed ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          <span className="hidden sm:inline">{dockCollapsed ? 'Buka Panel' : 'Tutup Panel'}</span>
+        </button>
       </div>
 
       {/* Tab Content Workspace */}
+      {!dockCollapsed && (
       <div className="p-4 sm:p-5 space-y-5">
         {/* TAB 1: ISLANDS & WEATHER TOTEMS */}
         {activeTab === 'islands' && (
@@ -2307,6 +2173,7 @@ export const FischGame: React.FC<FischGameProps> = ({
           </div>
         )}
       </div>
+      )}
 
       {/* Clean Footer Strip */}
       <div className="px-5 py-2.5 bg-[#ECEAE1]/90 dark:bg-[#061116]/90 border-t border-[#0B1E27]/10 dark:border-[#82AAA1]/15 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#425B66] dark:text-[#8FA3AC]">
