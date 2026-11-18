@@ -26,6 +26,12 @@ test('FISCH_SPECIES has 250+ unique species and crates across all 11 islands and
   const uniqueIds = new Set(FISCH_SPECIES.map((s) => s.id));
   assert.equal(uniqueIds.size, FISCH_SPECIES.length, 'Every species ID must be unique');
   assert.equal(FISCH_ISLANDS.length, 11);
+  assert.ok(
+    FISCH_ISLANDS.every(
+      (isl) => isl.minLevel === 1 && Number.isFinite(isl.worldCoords.x) && Number.isFinite(isl.worldCoords.z)
+    ),
+    'All 11 islands must be unlocked from Lv. 1 with valid worldCoords'
+  );
   assert.ok(FISCH_BOATS.length >= 4);
   assert.equal(findBoat('pirate_ship').hullStyle, 'galleon');
   assert.equal(createInitialFischSave().equippedBoatId, 'rowboat');

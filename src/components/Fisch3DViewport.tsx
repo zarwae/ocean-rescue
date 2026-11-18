@@ -15,11 +15,13 @@ import {
   clampPlayerPosition,
   computeBobberTargetPosition,
   DEFAULT_MOORED_BOAT_POS,
+  findNearestHarborBeacon,
   findNearestNpc,
-  findNearestOutpostBeacon,
+  FischHarborBeacon,
   FischNpcSpawn,
-  FischOutpostBeacon,
   getGroundHeightAt,
+  getIslandNpcSpawns,
+  getNeighborHarborBeacons,
   resolveBoatPosition,
   waterHeightAt,
 } from '../utils/fisch3dWorld';
@@ -73,12 +75,19 @@ interface ShakeTarget {
   yPercent: number;
 }
 
+interface CompassReadout {
+  targetName: string;
+  distanceM: number;
+  arrowAngleDeg: number;
+  accentHex: string;
+  isPinnedTarget: boolean;
+}
+
 interface Fisch3DViewportProps {
   theme: ThemeMode;
   island: FischIsland;
   rod: FischRod;
   boat: FischBoat;
-  playerLevel: number;
   timeOfDay: FischTimeOfDay;
   weather: FischWeather;
   auroraActive: boolean;
@@ -86,6 +95,7 @@ interface Fisch3DViewportProps {
   engineRef: React.MutableRefObject<FischMutableEngineState>;
   shakeTarget: ShakeTarget | null;
   lastCatchVisual: CatchVisualTrigger | null;
+  compassTargetIslandId?: string | null;
   onStepFishing: (dt: number, emitSplash: (x: number, y: number, z: number) => void) => void;
   onBeginCastOrReel: () => void;
   onReleaseInput: () => void;
@@ -95,6 +105,8 @@ interface Fisch3DViewportProps {
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
   statusBanner: string | null;
+  hudTopLeft?: React.ReactNode;
+  hudTopRight?: React.ReactNode;
   children?: React.ReactNode;
 }
 
@@ -114,7 +126,6 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
   island,
   rod,
   boat,
-  playerLevel,
   timeOfDay,
   weather,
   auroraActive,
@@ -122,6 +133,7 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
   engineRef,
   shakeTarget,
   lastCatchVisual,
+  compassTargetIslandId = null,
   onStepFishing,
   onBeginCastOrReel,
   onReleaseInput,
@@ -131,11 +143,14 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
   isFullscreen = false,
   onToggleFullscreen,
   statusBanner,
+  hudTopLeft,
+  hudTopRight,
   children,
 }) => {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const [nearestNpc, setNearestNpc] = useState<FischNpcSpawn | null>(null);
-  const [nearestOutpost, setNearestOutpost] = useState<FischOutpostBeacon | null>(null);
+  const [nearestOutpost, setNearestOutpost] = useState<FischHarborBeacon | null>(null);
+  const [compassReadout, setCompassReadout] = useState<CompassReadout | null>(null);
   const [inBoat, setInBoat] = useState(false);
   const [nearBoat, setNearBoat] = useState(true);
   const [nearDockForDisembark, setNearDockForDisembark] = useState(true);
@@ -161,10 +176,10 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
     island,
     rod,
     boat,
-    playerLevel,
     timeOfDay,
     weather,
     auroraActive,
+    compassTargetIslandId,
     onStepFishing,
     onBeginCastOrReel,
     onReleaseInput,
@@ -177,10 +192,10 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
     island,
     rod,
     boat,
-    playerLevel,
     timeOfDay,
     weather,
     auroraActive,
+    compassTargetIslandId,
     onStepFishing,
     onBeginCastOrReel,
     onReleaseInput,
@@ -192,8 +207,8 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
   // Player, Boat & Camera spatial state
   const spatialRef = useRef({
     px: 0,
-    py: getGroundHeightAt(island.id, 0, 5.4),
-    pz: 5.4,
+    py: getGroundHeightAt(island.id, 0, 10.5),
+    pz: 10.5,
     vy: 0,
     yaw: 0, // facing +Z toward open ocean
     isGrounded: true,
@@ -205,9 +220,9 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
     wakeTimer: 0,
     camYaw: 0,
     camPitch: 0.42,
-    camDist: 9.2,
-    bobberStart: new THREE.Vector3(0, 1.5, 6),
-    bobberTarget: new THREE.Vector3(0, 0, 15.5),
+    camDist: 9.6,
+    bobberStart: new THREE.Vector3(0, 1.5, 10.5),
+    bobberTarget: new THREE.Vector3(0, 0, 19.5),
     celebratingTimer: 0,
     lastIslandId: island.id,
     lastCatchId: 0,
@@ -222,8 +237,8 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
       sp.bz = DEFAULT_MOORED_BOAT_POS.z;
       sp.bYaw = DEFAULT_MOORED_BOAT_POS.yaw;
       sp.bSpeed = 0;
-      sp.px = -3.4;
-      sp.pz = 9.8;
+      sp.px = -5.2;
+      sp.pz = 14.8;
       sp.py = getGroundHeightAt(propsRef.current.island.id, sp.px, sp.pz);
       sp.vy = 0;
       sp.isGrounded = true;
@@ -233,19 +248,19 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
 
     if (!sp.inBoat) {
       const distBoat = Math.hypot(sp.px - sp.bx, sp.pz - sp.bz);
-      if (distBoat <= 6.5) {
+      if (distBoat <= 7.4) {
         sp.inBoat = true;
         sp.bSpeed = 0;
         sp.yaw = sp.bYaw;
         setInBoat(true);
       }
     } else {
-      const distPier = Math.hypot(sp.bx, sp.bz - 10.0);
-      if (distPier <= 11.2) {
+      const distPier = Math.hypot(sp.bx, sp.bz - 14.8);
+      if (distPier <= 13.5) {
         sp.inBoat = false;
         sp.bSpeed = 0;
-        sp.px = THREE.MathUtils.clamp(sp.bx, -4.4, 4.4);
-        sp.pz = THREE.MathUtils.clamp(sp.bz, 8.6, 11.2);
+        sp.px = THREE.MathUtils.clamp(sp.bx, -5.8, 5.8);
+        sp.pz = THREE.MathUtils.clamp(sp.bz, 13.2, 16.2);
         sp.py = getGroundHeightAt(propsRef.current.island.id, sp.px, sp.pz);
         sp.vy = 0;
         sp.isGrounded = true;
@@ -278,8 +293,8 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
       spatialRef.current.bYaw = DEFAULT_MOORED_BOAT_POS.yaw;
       spatialRef.current.bSpeed = 0;
       spatialRef.current.px = 0;
-      spatialRef.current.pz = 5.4;
-      spatialRef.current.py = getGroundHeightAt(island.id, 0, 5.4);
+      spatialRef.current.pz = 10.5;
+      spatialRef.current.py = getGroundHeightAt(island.id, 0, 10.5);
       spatialRef.current.vy = 0;
       spatialRef.current.yaw = 0;
       spatialRef.current.isGrounded = true;
@@ -317,13 +332,19 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
           propsRef.current.onTriggerShake();
         } else if (phaseNow === 'idle') {
           if (spatialRef.current.inBoat) {
-            const beacon = findNearestOutpostBeacon(spatialRef.current.bx, spatialRef.current.bz);
+            const beacon = findNearestHarborBeacon(
+              spatialRef.current.bx,
+              spatialRef.current.bz,
+              propsRef.current.island.id,
+              17.5
+            );
             if (beacon) {
               e.preventDefault();
               propsRef.current.onSailToOutpost(beacon.islandId);
             }
           } else {
-            const near = findNearestNpc(spatialRef.current.px, spatialRef.current.pz);
+            const spawns = getIslandNpcSpawns(propsRef.current.island.id);
+            const near = findNearestNpc(spatialRef.current.px, spatialRef.current.pz, 3.6, spawns);
             if (near) {
               e.preventDefault();
               propsRef.current.onInteractNpc(near);
@@ -398,7 +419,7 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color('#8ED1D4');
-    scene.fog = new THREE.FogExp2('#8ED1D4', 0.0115);
+    scene.fog = new THREE.FogExp2('#8ED1D4', 0.0058);
 
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
     const roomEnv = new RoomEnvironment();
@@ -407,20 +428,20 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
     roomEnv.dispose();
     pmremGenerator.dispose();
 
-    const camera = new THREE.PerspectiveCamera(56, width / height, 0.25, 260);
+    const camera = new THREE.PerspectiveCamera(56, width / height, 0.25, 380);
 
     // 3-Point Warm/Cool Lighting Rig
     const hemiLight = new THREE.HemisphereLight('#BCE8F7', '#174A57', 0.85);
     scene.add(hemiLight);
 
     const sunLight = new THREE.DirectionalLight('#FFF3D6', 1.75);
-    sunLight.position.set(18, 28, 16);
+    sunLight.position.set(22, 32, 18);
     sunLight.castShadow = !isSoftwareGl;
     sunLight.shadow.mapSize.width = 1024;
     sunLight.shadow.mapSize.height = 1024;
     sunLight.shadow.camera.near = 2;
-    sunLight.shadow.camera.far = 75;
-    const d = 24;
+    sunLight.shadow.camera.far = 92;
+    const d = 32;
     sunLight.shadow.camera.left = -d;
     sunLight.shadow.camera.right = d;
     sunLight.shadow.camera.top = d;
@@ -430,11 +451,11 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
     scene.add(sunLight);
 
     const rimLight = new THREE.DirectionalLight('#7DD3FC', 0.55);
-    rimLight.position.set(-16, 12, -18);
+    rimLight.position.set(-18, 14, -20);
     scene.add(rimLight);
 
     // Animated PBR Ocean Plane (onBeforeCompile GLSL Waves matching waterHeightAt)
-    const waterGeo = new THREE.PlaneGeometry(280, 280, isSoftwareGl ? 64 : 104, isSoftwareGl ? 64 : 104);
+    const waterGeo = new THREE.PlaneGeometry(460, 460, isSoftwareGl ? 64 : 112, isSoftwareGl ? 64 : 112);
     const waterMat = new THREE.MeshStandardMaterial({
       color: '#2B8E94',
       roughness: 0.16,
@@ -751,7 +772,7 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
       (scene.background as THREE.Color).lerp(_targetBg, 0.08);
       if (scene.fog instanceof THREE.FogExp2) {
         scene.fog.color.copy(scene.background as THREE.Color);
-        const targetDensity = curProps.weather === 'Foggy' ? 0.028 : curProps.weather === 'Storm' ? 0.018 : 0.0105;
+        const targetDensity = curProps.weather === 'Foggy' ? 0.022 : curProps.weather === 'Storm' ? 0.014 : 0.0058;
         scene.fog.density = THREE.MathUtils.lerp(scene.fog.density, targetDensity, 0.06);
       }
 
@@ -807,7 +828,8 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
             sp.bx,
             sp.bz,
             sp.bx + Math.sin(sp.bYaw) * sp.bSpeed * dt,
-            sp.bz + Math.cos(sp.bYaw) * sp.bSpeed * dt
+            sp.bz + Math.cos(sp.bYaw) * sp.bSpeed * dt,
+            curProps.island.id
           );
           sp.bx = resolved.x;
           sp.bz = resolved.z;
@@ -1055,7 +1077,8 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
 
       if (elapsedTotal - lastNearCheck > 0.12) {
         lastNearCheck = elapsedTotal;
-        const near = sp.inBoat ? null : findNearestNpc(sp.px, sp.pz);
+        const spawns = getIslandNpcSpawns(curProps.island.id);
+        const near = sp.inBoat ? null : findNearestNpc(sp.px, sp.pz, 3.6, spawns);
         for (const actor of islandHandle.npcActors) {
           const isHot = near?.id === actor.spawn.id;
           actor.ringMat.opacity = isHot ? 0.85 : 0.28;
@@ -1066,14 +1089,58 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
           setNearestNpc(near);
         }
 
-        const isNearBoat = !sp.inBoat && Math.hypot(sp.px - sp.bx, sp.pz - sp.bz) <= 6.5;
+        const isNearBoat = !sp.inBoat && Math.hypot(sp.px - sp.bx, sp.pz - sp.bz) <= 7.4;
         setNearBoat((prev) => (prev !== isNearBoat ? isNearBoat : prev));
 
-        const isNearDock = sp.inBoat && Math.hypot(sp.bx, sp.bz - 10.0) <= 11.2;
+        const isNearDock = sp.inBoat && Math.hypot(sp.bx, sp.bz - 14.8) <= 13.5;
         setNearDockForDisembark((prev) => (prev !== isNearDock ? isNearDock : prev));
 
-        const outpost = sp.inBoat ? findNearestOutpostBeacon(sp.bx, sp.bz) : null;
+        const outpost = sp.inBoat
+          ? findNearestHarborBeacon(sp.bx, sp.bz, curProps.island.id, 17.5)
+          : null;
         setNearestOutpost((prev) => ((prev?.islandId ?? null) !== (outpost?.islandId ?? null) ? outpost : prev));
+
+        // Update live Sailing Compass Readout when inBoat OR a compass target island is pinned
+        const pinnedId = curProps.compassTargetIslandId;
+        if (sp.inBoat || pinnedId) {
+          const neighbors = getNeighborHarborBeacons(curProps.island.id);
+          let targetBeacon = pinnedId ? neighbors.find((b) => b.islandId === pinnedId) ?? null : null;
+          const isPinnedTarget = Boolean(targetBeacon);
+          if (!targetBeacon && sp.inBoat && neighbors.length > 0) {
+            let bestDist = Infinity;
+            for (const b of neighbors) {
+              const d = Math.hypot(b.x - sp.bx, b.z - sp.bz);
+              if (d < bestDist) {
+                bestDist = d;
+                targetBeacon = b;
+              }
+            }
+          }
+          if (targetBeacon) {
+            const refX = sp.inBoat ? sp.bx : sp.px;
+            const refZ = sp.inBoat ? sp.bz : sp.pz;
+            const dx = targetBeacon.x - refX;
+            const dz = targetBeacon.z - refZ;
+            const distM = Math.round(Math.hypot(dx, dz));
+            // Project target direction into camera screen space (Right vs Forward)
+            const cosC = Math.cos(sp.camYaw);
+            const sinC = Math.sin(sp.camYaw);
+            const dotRight = dx * cosC - dz * sinC;
+            const dotForward = -dx * sinC - dz * cosC;
+            const arrowAngleDeg = (Math.atan2(dotRight, dotForward) * 180) / Math.PI;
+            setCompassReadout({
+              targetName: targetBeacon.name,
+              distanceM: distM,
+              arrowAngleDeg,
+              accentHex: targetBeacon.accentHex,
+              isPinnedTarget,
+            });
+          } else {
+            setCompassReadout(null);
+          }
+        } else {
+          setCompassReadout(null);
+        }
       }
 
       // 10. Direct 60fps DOM updates for Cast Power Bar & Fisch Reel Bar
@@ -1204,8 +1271,8 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
 
   return (
     <div
-      className={`relative w-full overflow-hidden border-b border-[#0B1E27]/12 dark:border-[#82AAA1]/18 bg-[#081A24] select-none ${
-        isFullscreen ? 'h-[64dvh] sm:h-[72dvh]' : 'h-[430px] sm:h-[500px]'
+      className={`relative w-full overflow-hidden bg-[#081A24] select-none ${
+        isFullscreen ? 'h-full flex-1' : 'h-[540px] sm:h-[640px]'
       }`}
     >
       {/* Dedicated Isolated WebGL Mount Container */}
@@ -1217,45 +1284,51 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
         </div>
       )}
 
-      {/* Top-Left Compact Hint + Top-Right Controls */}
+      {/* Floating Top HUD Row (Top-Left Player Info + Controls Hint, Top-Center Compass, Top-Right Corner Icons) */}
       <div className="absolute top-3 left-3 right-3 z-10 flex items-start justify-between gap-2 pointer-events-none">
-        <div className="px-3 py-1.5 rounded-lg bg-[#F7F6F1]/95 dark:bg-[#061116]/92 border border-[#0B1E27]/15 dark:border-[#82AAA1]/28 text-[11px] sm:text-xs shadow-md pointer-events-auto max-w-[68%]">
-          {phase === 'idle' && inBoat && (
-            <span>
-              <strong>Di Kapal ({boat.name})</strong> · WASD/Joystick berlayar ke pulau atol · atau tahan{' '}
-              <strong className="text-[#1D6664] dark:text-[#82AAA1]">Lempar [F]</strong> dari kapal!
-            </span>
-          )}
-          {phase === 'idle' && !inBoat && (
-            <span>
-              <strong>WASD / Joystick</strong> jalan · Seret layar putar kamera · <strong>B</strong> naik kapal di ujung kiri dermaga · tahan{' '}
-              <strong className="text-[#1D6664] dark:text-[#82AAA1]">Lempar [F]</strong>
-            </span>
-          )}
-          {phase === 'charging' && (
-            <span className="text-[#1D6664] dark:text-[#5EC48B] font-semibold">
-              Lepas di zona hijau untuk Perfect Cast! (Lemparan mengikuti arah pandang &amp; cincin bidik)
-            </span>
-          )}
-          {phase === 'casting' && <span>Melempar kail ke laut {island.name}...</span>}
-          {phase === 'waiting' && (
-            <span>
-              Menunggu sambaran · Klik <strong>Shake!</strong> atau tekan <strong>E</strong>!
-            </span>
-          )}
-          {phase === 'biting' && (
-            <span className="text-[#876B3A] dark:text-[#F6C453] font-bold">
-              SAMBARAN! Bersiap menahan bar Reel!
-            </span>
-          )}
-          {phase === 'reeling' && (
-            <span className="text-[#1D6664] dark:text-[#82AAA1] font-semibold">
-              Tahan &amp; Lepas Spasi / F / Tombol Tarik agar bar putih tepat di atas ikan!
-            </span>
-          )}
+        <div className="flex flex-col items-start gap-1.5 max-w-[66%] pointer-events-auto">
+          {hudTopLeft}
+          <div className="px-2.5 py-1 rounded-lg bg-[#F7F6F1]/92 dark:bg-[#061116]/90 border border-[#0B1E27]/15 dark:border-[#82AAA1]/28 text-[11px] shadow-md">
+            {phase === 'idle' && inBoat && (
+              <span>
+                <strong>Di Kapal ({boat.name})</strong> · WASD/Joystick berlayar ·{' '}
+                <strong className="text-[#1D6664] dark:text-[#82AAA1]">Lempar [F]</strong> atau labuhkan di dermaga pulau lain!
+              </span>
+            )}
+            {phase === 'idle' && !inBoat && (
+              <span>
+                <strong>WASD / Joystick</strong> jalan · Klik NPC / <strong>[E]</strong> · <strong>[B]</strong> naik kapal · tahan{' '}
+                <strong className="text-[#1D6664] dark:text-[#82AAA1]">[F]</strong> lempar
+              </span>
+            )}
+            {phase === 'charging' && (
+              <span className="text-[#1D6664] dark:text-[#5EC48B] font-semibold">
+                Lepas di zona hijau untuk Perfect Cast! (Mengikuti arah hadap karakter)
+              </span>
+            )}
+            {phase === 'casting' && <span>Melempar kail ke laut {island.name}...</span>}
+            {phase === 'waiting' && (
+              <span>
+                Menunggu sambaran · Klik <strong>Shake!</strong> atau tekan <strong>E</strong>!
+              </span>
+            )}
+            {phase === 'biting' && (
+              <span className="text-[#876B3A] dark:text-[#F6C453] font-bold">
+                SAMBARAN! Bersiap menahan bar Reel!
+              </span>
+            )}
+            {phase === 'reeling' && (
+              <span className="text-[#1D6664] dark:text-[#82AAA1] font-semibold">
+                Tahan &amp; Lepas Spasi / F / Tombol Tarik agar bar putih tepat di atas ikan!
+              </span>
+            )}
+          </div>
         </div>
 
-        <div className="flex items-center gap-1.5 pointer-events-auto">
+        {/* Top-Right Compact Corner Buttons */}
+        <div className="flex flex-wrap items-center justify-end gap-1.5 pointer-events-auto">
+          {hudTopRight}
+
           <button
             type="button"
             onClick={() => setShowVirtualPad((v) => !v)}
@@ -1263,7 +1336,7 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
             title="Tampilkan / Sembunyikan Kontrol Sentuh iPad"
           >
             <Gamepad2 className="w-3.5 h-3.5 text-[#1D6664] dark:text-[#82AAA1]" />
-            <span className="hidden sm:inline">{showVirtualPad ? 'Kontrol Sentuh: ON' : 'Kontrol Sentuh: OFF'}</span>
+            <span className="hidden lg:inline">{showVirtualPad ? 'Sentuh' : 'Sentuh: OFF'}</span>
           </button>
 
           {onToggleFullscreen && (
@@ -1283,6 +1356,32 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
           )}
         </div>
       </div>
+
+      {/* Live Sailing Compass Banner (Top-Center when Sailing or Target Pinned) */}
+      {compassReadout && (
+        <div className="absolute top-16 sm:top-14 left-1/2 -translate-x-1/2 z-10 pointer-events-none px-3.5 py-1.5 rounded-xl bg-[#071722]/92 text-[#F7F6F1] border border-[#82AAA1]/45 shadow-xl flex items-center gap-2.5 text-xs tabular-nums">
+          <div
+            className="w-6 h-6 rounded-full flex items-center justify-center border"
+            style={{ borderColor: compassReadout.accentHex }}
+          >
+            <ArrowUp
+              className="w-3.5 h-3.5 transition-transform duration-150"
+              style={{
+                color: compassReadout.accentHex,
+                transform: `rotate(${Math.round(compassReadout.arrowAngleDeg)}deg)`,
+              }}
+            />
+          </div>
+          <div className="leading-tight">
+            <div className="text-[10px] uppercase tracking-wider text-[#98ACB5]">
+              {compassReadout.isPinnedTarget ? 'Target Kompas' : 'Pelabuhan Terdekat'}
+            </div>
+            <div className="font-semibold">
+              {compassReadout.targetName} · <span className="text-[#F6C453]">{compassReadout.distanceM} m</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Clickable Shake Prompt during Waiting */}
       {phase === 'waiting' && shakeTarget && (
@@ -1428,11 +1527,7 @@ export const Fisch3DViewport: React.FC<Fisch3DViewportProps> = ({
                 className="px-3.5 py-2 rounded-xl bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1] border border-[#5EC48B] text-xs font-bold flex items-center gap-1.5 shadow-xl cursor-pointer"
               >
                 <Compass className="w-3.5 h-3.5" />
-                <span>
-                  {playerLevel >= nearestOutpost.minLevel
-                    ? `Labuhkan: ${nearestOutpost.name} [E]`
-                    : `${nearestOutpost.name} (Butuh Lv.${nearestOutpost.minLevel})`}
-                </span>
+                <span>Labuhkan: {nearestOutpost.name} [E]</span>
               </button>
             )}
 

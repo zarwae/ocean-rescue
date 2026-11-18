@@ -24,7 +24,9 @@ export interface FischIsland {
   dangerNote?: string;
   requiresHeatProtect?: boolean;
   requiresBoat?: boolean;
+  worldCoords: { x: number; z: number };
   outpostCoords?: { x: number; z: number };
+  accentHex: string;
   skyTopLight: string;
   skyBottomLight: string;
   waterTopLight: string;
@@ -45,6 +47,71 @@ export interface FischIsland {
     | 'forsaken'
     | 'ancient'
     | 'depths';
+}
+
+export type NpcHatStyle =
+  | 'straw'
+  | 'coral_crown'
+  | 'mushroom_cap'
+  | 'forge_visor'
+  | 'fur_hood'
+  | 'sun_turban'
+  | 'laurel'
+  | 'diving_helm'
+  | 'tricorn'
+  | 'pith_helmet'
+  | 'abyss_hood'
+  | 'captain_cap';
+
+export type MerchantStallStyle =
+  | 'timber_awning'
+  | 'coral_tiki'
+  | 'moss_booth'
+  | 'lava_forge'
+  | 'ice_igloo'
+  | 'sun_gazebo'
+  | 'marble_arch'
+  | 'bathysphere_counter'
+  | 'pirate_bar'
+  | 'amber_pavilion'
+  | 'crystal_shrine';
+
+export type AppraiserTableStyle =
+  | 'brass_scale'
+  | 'pearl_basin'
+  | 'spore_pedestal'
+  | 'magma_anvil'
+  | 'frost_prism'
+  | 'solar_astrolabe'
+  | 'rune_lectern'
+  | 'sonar_bench'
+  | 'chest_compass'
+  | 'fossil_desk'
+  | 'abyssal_orb';
+
+export interface IslandMerchantPersona {
+  name: string;
+  subtitle: string;
+  dialogue: string;
+  shirtHex: string;
+  accentHex: string;
+  hatStyle: NpcHatStyle;
+  stallStyle: MerchantStallStyle;
+}
+
+export interface IslandAppraiserPersona {
+  name: string;
+  subtitle: string;
+  dialogue: string;
+  shirtHex: string;
+  accentHex: string;
+  hatStyle: NpcHatStyle;
+  tableStyle: AppraiserTableStyle;
+}
+
+export interface IslandNpcPersonas {
+  merchant: IslandMerchantPersona;
+  appraiser: IslandAppraiserPersona;
 }
 
 export interface FischBoat {
@@ -238,8 +305,11 @@ export const FISCH_ISLANDS: FischIsland[] = [
     name: 'Moosewood Docks',
     subtitle: 'Pelabuhan Awal & Perairan Tenang',
     minLevel: 1,
+    requiresBoat: false,
+    worldCoords: { x: 0, z: 0 },
+    accentHex: '#5EC48B',
     description:
-      'Pusat komunitas pemancing Moosewood tempat Pierre, Phineas, Merchant, dan Appraiser berada. Cocok untuk memulai koleksi Bestiary.',
+      'Pusat komunitas pemancing Moosewood dengan mercusuar pelabuhan, kios kayu hangat, dan perairan tenang untuk memulai Bestiary.',
     skyTopLight: '#BEE7E8',
     skyBottomLight: '#E8F4EF',
     waterTopLight: '#3B9498',
@@ -254,9 +324,13 @@ export const FISCH_ISLANDS: FischIsland[] = [
     id: 'roslit_bay',
     name: 'Roslit Bay',
     subtitle: 'Teluk Terumbu & Laguna Karang',
-    minLevel: 2,
+    minLevel: 1,
+    requiresBoat: true,
+    worldCoords: { x: 0, z: 52 },
+    outpostCoords: { x: 0, z: 52 },
+    accentHex: '#2DD4BF',
     description:
-      'Teluk tropis yang kaya ikan karang warna-warni, pari, dan hiu pesisir. Rumah bagi The Orc dan jalur masuk ke kawah vulkanik.',
+      'Teluk tropis berpasir putih dengan gapura terumbu karang, gazebo tiki, serta kekayaan ikan karang, pari, dan hiu pesisir.',
     skyTopLight: '#A8E6E4',
     skyBottomLight: '#F3EFE0',
     waterTopLight: '#2FA1A6',
@@ -271,9 +345,13 @@ export const FISCH_ISLANDS: FischIsland[] = [
     id: 'mushgrove',
     name: 'Mushgrove Swamp',
     subtitle: 'Rawa Jamur Bercahaya',
-    minLevel: 5,
+    minLevel: 1,
+    requiresBoat: true,
+    worldCoords: { x: 38, z: -36 },
+    outpostCoords: { x: 38, z: -36 },
+    accentHex: '#10B981',
     description:
-      'Rawa berkabut dengan pohon jamur raksasa tempat Agric berjaga. Rumah bagi aligator purba dan ikan air tawar mistis.',
+      'Rawa berkabut dengan pohon jamur raksasa berpendar, jembatan lumut, dan tempat tinggal aligator purba serta ikan mistis.',
     skyTopLight: '#B4D6C8',
     skyBottomLight: '#DCE6D5',
     waterTopLight: '#3E7A69',
@@ -288,11 +366,15 @@ export const FISCH_ISLANDS: FischIsland[] = [
     id: 'roslit_volcano',
     name: 'Roslit Volcano',
     subtitle: 'Kaldera Lava & Magma Mendidih',
-    minLevel: 7,
+    minLevel: 1,
+    requiresBoat: true,
+    worldCoords: { x: 84, z: -16 },
+    outpostCoords: { x: 84, z: -16 },
+    accentHex: '#FB923C',
     requiresHeatProtect: true,
     dangerNote: 'Air super panas! Gunakan Magma Rod atau Rod tahan panas agar tangkapan langka tidak meleleh.',
     description:
-      'Kawah vulkanik aktif dengan kolam lava pijar yang menyimpan makhluk obsidian dan belut magma bernilai tinggi.',
+      'Kawah vulkanik aktif dengan benteng basal, bengkel tempa lava, dan sungai pijar yang menyimpan belut magma bernilai tinggi.',
     skyTopLight: '#D9A78C',
     skyBottomLight: '#F0CFB8',
     waterTopLight: '#B34C32',
@@ -307,9 +389,13 @@ export const FISCH_ISLANDS: FischIsland[] = [
     id: 'snowcap',
     name: 'Snowcap Island',
     subtitle: 'Pulau Es & Gua Glasial',
-    minLevel: 9,
+    minLevel: 1,
+    requiresBoat: true,
+    worldCoords: { x: -38, z: -36 },
+    outpostCoords: { x: -38, z: -36 },
+    accentHex: '#7DD3FC',
     description:
-      'Tebing salju abadi dengan celah es dingin yang sering menghadirkan ikan bermutasi Frozen dan paus kutub raksasa.',
+      'Tebing salju abadi dengan menara kristal glasial, pondok igloo hangat, serta perairan beku tempat paus kutub muncul.',
     skyTopLight: '#CFE4F2',
     skyBottomLight: '#F2F8FC',
     waterTopLight: '#4E8FB3',
@@ -324,9 +410,13 @@ export const FISCH_ISLANDS: FischIsland[] = [
     id: 'sunstone',
     name: 'Sunstone Island',
     subtitle: 'Puncak Matahari & Menara Merlin',
-    minLevel: 12,
+    minLevel: 1,
+    requiresBoat: true,
+    worldCoords: { x: 48, z: 16 },
+    outpostCoords: { x: 48, z: 16 },
+    accentHex: '#FBBF24',
     description:
-      'Kepulauan berbatu keemasan tempat penyihir Merlin menjual Enchant Relic & berkah Luck. Terkenal dengan Sunfish raksasa.',
+      'Kepulauan batu keemasan dengan obelisk matahari, gazebo surya, dan menara penyihir Merlin. Rumah bagi Sunfish raksasa.',
     skyTopLight: '#D6D9B8',
     skyBottomLight: '#F7ECD1',
     waterTopLight: '#378B89',
@@ -341,9 +431,13 @@ export const FISCH_ISLANDS: FischIsland[] = [
     id: 'sovereignty',
     name: 'Statue of Sovereignty',
     subtitle: 'Monumen Agung & Keeper’s Altar',
-    minLevel: 16,
+    minLevel: 1,
+    requiresBoat: true,
+    worldCoords: { x: 0, z: -68 },
+    outpostCoords: { x: 0, z: -68 },
+    accentHex: '#A78BFA',
     description:
-      'Pulau monumen batu kuno yang menyimpan Keeper’s Altar di ruang bawah tanah untuk memasang Enchant pada Rod di malam hari.',
+      'Pulau monumen marmer raksasa berpenjaga trisula emas dan pilar koloni kuno tempat Keeper’s Altar bersemayam.',
     skyTopLight: '#BCCBD4',
     skyBottomLight: '#E5E8EB',
     waterTopLight: '#386E82',
@@ -358,9 +452,13 @@ export const FISCH_ISLANDS: FischIsland[] = [
     id: 'desolate_deep',
     name: 'Desolate Deep',
     subtitle: 'Palung Abyssal & Mariana’s Veil',
-    minLevel: 22,
+    minLevel: 1,
+    requiresBoat: true,
+    worldCoords: { x: -84, z: -16 },
+    outpostCoords: { x: -84, z: -16 },
+    accentHex: '#22D3EE',
     description:
-      'Zona laut terdalam paling ekstrem yang dijaga Submariner. Tempat tinggal Kraken, Ancient Depth Serpent, dan Scylla.',
+      'Zona palung laut terdalam dengan kapal selam riset kuning, kawah hidrotermal cyan, dan monster laut seperti Kraken serta Scylla.',
     skyTopLight: '#97B5C4',
     skyBottomLight: '#CBE0E8',
     waterTopLight: '#1E5166',
@@ -374,12 +472,14 @@ export const FISCH_ISLANDS: FischIsland[] = [
   {
     id: 'forsaken_shores',
     name: 'Forsaken Shores',
-    subtitle: 'Pulau Bajak Laut (Wajib Naik Kapal)',
-    minLevel: 6,
+    subtitle: 'Teluk Tengkorak & Armada Bajak Laut',
+    minLevel: 1,
     requiresBoat: true,
-    outpostCoords: { x: -48, z: 36 },
+    worldCoords: { x: -48, z: 16 },
+    outpostCoords: { x: -48, z: 16 },
+    accentHex: '#F97316',
     description:
-      'Pulau karang tengkorak dan bangkai kapal bajak laut di samudra barat. Hanya dapat diakses menggunakan kapal dari dermaga!',
+      'Pulau karang tengkorak bermata bara, meriam tua, dan bangkai kapal layar bajak laut di samudra barat.',
     skyTopLight: '#C8B8A6',
     skyBottomLight: '#EADCCB',
     waterTopLight: '#2E727D',
@@ -393,12 +493,14 @@ export const FISCH_ISLANDS: FischIsland[] = [
   {
     id: 'ancient_isle',
     name: 'Ancient Isle',
-    subtitle: 'Kepulauan Meteor Prasejarah (Wajib Naik Kapal)',
-    minLevel: 12,
+    subtitle: 'Kepulauan Meteor Prasejarah',
+    minLevel: 1,
     requiresBoat: true,
-    outpostCoords: { x: 50, z: 38 },
+    worldCoords: { x: 48, z: 66 },
+    outpostCoords: { x: 48, z: 66 },
+    accentHex: '#34D399',
     description:
-      'Pulau purba di timur samudra dengan kawah meteor bercahaya. Rumah fosil hidup seperti Mosasaurus dan Leedsichthys!',
+      'Pulau purba dengan kawah meteor hijau bercahaya, fosil tulang raksasa, dan penghuni prasejarah seperti Mosasaurus.',
     skyTopLight: '#BFD9C8',
     skyBottomLight: '#ECEAD3',
     waterTopLight: '#288580',
@@ -412,12 +514,14 @@ export const FISCH_ISLANDS: FischIsland[] = [
   {
     id: 'the_depths',
     name: 'The Depths Atoll',
-    subtitle: 'Atol Kristal Samudra Dalam (Wajib Naik Kapal)',
-    minLevel: 18,
+    subtitle: 'Atol Kristal Samudra Dalam',
+    minLevel: 1,
     requiresBoat: true,
-    outpostCoords: { x: 0, z: 68 },
+    worldCoords: { x: -48, z: 66 },
+    outpostCoords: { x: -48, z: 66 },
+    accentHex: '#38BDF8',
     description:
-      'Atol batu gelap berpendar kristal biru-ungu jauh di utara samudra terbuka, hanya dapat ditempuh pelaut tangguh dengan kapal.',
+      'Atol batu gelap berpendar menara kristal biru-ungu jauh di perairan selatan samudra terbuka.',
     skyTopLight: '#91B4C9',
     skyBottomLight: '#C9E1EE',
     waterTopLight: '#1D4963',
@@ -429,6 +533,251 @@ export const FISCH_ISLANDS: FischIsland[] = [
     silhouetteType: 'depths',
   },
 ];
+
+export const ISLAND_NPC_PERSONAS: Record<string, IslandNpcPersonas> = {
+  moosewood: {
+    merchant: {
+      name: 'Pak Marlow',
+      subtitle: 'Pedagang Dermaga Moosewood',
+      dialogue:
+        'Selamat datang di Dermaga Moosewood! Bawa hasil pancingmu ke kios kayu ini untuk ditukar dengan C$ atau tingkatkan joran pertamamu.',
+      shirtHex: '#876B3A',
+      accentHex: '#F6C453',
+      hatStyle: 'captain_cap',
+      stallStyle: 'timber_awning',
+    },
+    appraiser: {
+      name: 'Nona Clara',
+      subtitle: 'Ahli Timbang Moosewood',
+      dialogue:
+        'Timbangan kuningan saya siap mengukur berat asli serta memoles kilau Shiny atau Mutasi langka pada ikanmu.',
+      shirtHex: '#267472',
+      accentHex: '#82AAA1',
+      hatStyle: 'straw',
+      tableStyle: 'brass_scale',
+    },
+  },
+  roslit_bay: {
+    merchant: {
+      name: 'Bram Karang',
+      subtitle: 'Saudagar Teluk Roslit',
+      dialogue:
+        'Angin teluk lagi hangat! Ikan karang dan hiu pesisir di sini laris manis, sekalian cek peti umpan di gubuk tiki kami.',
+      shirtHex: '#0F766E',
+      accentHex: '#2DD4BF',
+      hatStyle: 'straw',
+      stallStyle: 'coral_tiki',
+    },
+    appraiser: {
+      name: 'Kalea Mutiara',
+      subtitle: 'Penilai Mutiara Roslit',
+      dialogue:
+        'Cahaya laguna biru di atas kolam mutiara ini sering membangkitkan sifat Sparkling dan bobot Giant!',
+      shirtHex: '#1D4ED8',
+      accentHex: '#67E8F9',
+      hatStyle: 'coral_crown',
+      tableStyle: 'pearl_basin',
+    },
+  },
+  mushgrove: {
+    merchant: {
+      name: 'Tuan Spore',
+      subtitle: 'Penjual Rawa Mushgrove',
+      dialogue:
+        'Hati-hati melangkah di jembatan lumut! Kami menukar aligator purba dan ikan mistis rawa dengan bayaran penuh.',
+      shirtHex: '#166534',
+      accentHex: '#4ADE80',
+      hatStyle: 'mushroom_cap',
+      stallStyle: 'moss_booth',
+    },
+    appraiser: {
+      name: 'Nenek Mycelia',
+      subtitle: 'Peramu Spora Rawa',
+      dialogue:
+        'Serbuk jamur bercahaya di meja ini sanggup menyingkap mutasi tersembunyi yang tak terlihat mata biasa.',
+      shirtHex: '#4D7C0F',
+      accentHex: '#A3E635',
+      hatStyle: 'mushroom_cap',
+      tableStyle: 'spore_pedestal',
+    },
+  },
+  roslit_volcano: {
+    merchant: {
+      name: 'Pandai Vulkan',
+      subtitle: 'Pedagang Kaldera Magma',
+      dialogue:
+        'Hanya pemancing bernyali yang berlabuh di kawah lava! Lengkapi dirimu dengan joran tahan panas di bengkel basal ini.',
+      shirtHex: '#9A3412',
+      accentHex: '#FB923C',
+      hatStyle: 'forge_visor',
+      stallStyle: 'lava_forge',
+    },
+    appraiser: {
+      name: 'Ignis Obsidian',
+      subtitle: 'Penempa Mutasi Kaldera',
+      dialogue:
+        'Panas paron magma mampu memurnikan sisik ikan menjadi lebih berat dan bernilai berkali lipat.',
+      shirtHex: '#7F1D1D',
+      accentHex: '#F97316',
+      hatStyle: 'forge_visor',
+      tableStyle: 'magma_anvil',
+    },
+  },
+  snowcap: {
+    merchant: {
+      name: 'Kapten Frost',
+      subtitle: 'Saudagar Kutub Snowcap',
+      dialogue:
+        'Suhu di sini minus belasan derajat! Masuklah ke dekat kios igloo untuk menjual tangkapan es dan paus raksasa.',
+      shirtHex: '#0369A1',
+      accentHex: '#BAE6FD',
+      hatStyle: 'fur_hood',
+      stallStyle: 'ice_igloo',
+    },
+    appraiser: {
+      name: 'Freya Glasial',
+      subtitle: 'Penguji Kristal Snowcap',
+      dialogue:
+        'Prisma es murni ini memantulkan keajaiban kutub—sangat bagus untuk berburu atribut Frozen & Shiny.',
+      shirtHex: '#1E40AF',
+      accentHex: '#7DD3FC',
+      hatStyle: 'fur_hood',
+      tableStyle: 'frost_prism',
+    },
+  },
+  sunstone: {
+    merchant: {
+      name: 'Surya Al-Rashid',
+      subtitle: 'Pedagang Puncak Sunstone',
+      dialogue:
+        'Di bawah terik menara Merlin, Sunfish dan tangkapan emasmu akan dihargai setinggi langit di gazebo surya kami!',
+      shirtHex: '#B45309',
+      accentHex: '#FDE047',
+      hatStyle: 'sun_turban',
+      stallStyle: 'sun_gazebo',
+    },
+    appraiser: {
+      name: 'Helios Astrolab',
+      subtitle: 'Peramal Bintang Sunstone',
+      dialogue:
+        'Dengan astrolab emas, mari kita hitung ulang takdir bobot dan kemilau tangkapanmu di puncak matahari.',
+      shirtHex: '#92400E',
+      accentHex: '#FBBF24',
+      hatStyle: 'sun_turban',
+      tableStyle: 'solar_astrolabe',
+    },
+  },
+  sovereignty: {
+    merchant: {
+      name: 'Kurator Aurelius',
+      subtitle: 'Bendahara Monumen Agung',
+      dialogue:
+        'Monumen Kedaulatan menyambut para pelaut ulung. Serahkan hasil buruanmu di gerbang marmer ini untuk pendanaan ekspedisi.',
+      shirtHex: '#475569',
+      accentHex: '#CBD5E1',
+      hatStyle: 'laurel',
+      stallStyle: 'marble_arch',
+    },
+    appraiser: {
+      name: 'Vespera Rune',
+      subtitle: 'Penjaga Mimbar Sovereignty',
+      dialogue:
+        'Gema rune kuno di mimbar batu ini selalu jujur saat menaksir kualitas tangkapan malam hari.',
+      shirtHex: '#4338CA',
+      accentHex: '#C4B5FD',
+      hatStyle: 'laurel',
+      tableStyle: 'rune_lectern',
+    },
+  },
+  desolate_deep: {
+    merchant: {
+      name: 'Kapten Nemoir',
+      subtitle: 'Logistik Kapal Selam Abyssal',
+      dialogue:
+        'Palung Desolate penuh bahaya! Periksa stok joran kelas berat di pos batiskaf ini sebelum menghadapi Kraken atau Scylla.',
+      shirtHex: '#0F172A',
+      accentHex: '#22D3EE',
+      hatStyle: 'diving_helm',
+      stallStyle: 'bathysphere_counter',
+    },
+    appraiser: {
+      name: 'Dr. Thalassa',
+      subtitle: 'Peneliti Sonar Mariana',
+      dialogue:
+        'Meja pemindai sonar bertekanan tinggi kami sanggup mengkalibrasi ulang makhluk palung terdalam dengan presisi.',
+      shirtHex: '#155E75',
+      accentHex: '#67E8F9',
+      hatStyle: 'diving_helm',
+      tableStyle: 'sonar_bench',
+    },
+  },
+  forsaken_shores: {
+    merchant: {
+      name: 'Kapten Barnaby',
+      subtitle: 'Tuan Kios Bajak Laut',
+      dialogue:
+        'Yo-ho-ho! Akhirnya kapalmu merapat di Forsaken Shores! Bar karang tengkorak ini membeli semua jarahan laut dengan harga adil.',
+      shirtHex: '#7C2D12',
+      accentHex: '#F97316',
+      hatStyle: 'tricorn',
+      stallStyle: 'pirate_bar',
+    },
+    appraiser: {
+      name: 'Anne Si Kompas',
+      subtitle: 'Penaksir Harta Karun Bajak Laut',
+      dialogue:
+        'Di atas peti kompas kapal karam ini, ikan biasa pun bisa berubah nilainya seperti harta karun kapten!',
+      shirtHex: '#581C87',
+      accentHex: '#FDBA74',
+      hatStyle: 'tricorn',
+      tableStyle: 'chest_compass',
+    },
+  },
+  ancient_isle: {
+    merchant: {
+      name: 'Prof. Gideon',
+      subtitle: 'Ekspedisi Fosil Ancient Isle',
+      dialogue:
+        'Kawah meteor membawa spesies prasejarah keluar dari dasar laut! Paviliun ambar kami siap membeli seluruh hasil risetmu.',
+      shirtHex: '#3F6212',
+      accentHex: '#34D399',
+      hatStyle: 'pith_helmet',
+      stallStyle: 'amber_pavilion',
+    },
+    appraiser: {
+      name: 'Arkeolog Lyra',
+      subtitle: 'Kurator Fosil Prasejarah',
+      dialogue:
+        'Meja kaca pembesar ambar ini meneliti usia, ukuran Giant, dan resonansi meteor pada tangkapan purbamu.',
+      shirtHex: '#065F46',
+      accentHex: '#6EE7B7',
+      hatStyle: 'pith_helmet',
+      tableStyle: 'fossil_desk',
+    },
+  },
+  the_depths: {
+    merchant: {
+      name: 'Keeper Orion',
+      subtitle: 'Saudagar Atol The Depths',
+      dialogue:
+        'Selamat tiba di Atol Kristal! Di kuil cahaya ini kau bisa menukar makhluk abyssal terlangka dengan joran puncak.',
+      shirtHex: '#1E1B4B',
+      accentHex: '#38BDF8',
+      hatStyle: 'abyss_hood',
+      stallStyle: 'crystal_shrine',
+    },
+    appraiser: {
+      name: 'Peramal Nyx',
+      subtitle: 'Penjaga Bola Kristal Abyssal',
+      dialogue:
+        'Tataplah bola kristal kedalaman—energi The Depths sanggup membangunkan mutasi paling langka di lautan.',
+      shirtHex: '#312E81',
+      accentHex: '#A5B4FC',
+      hatStyle: 'abyss_hood',
+      tableStyle: 'abyssal_orb',
+    },
+  },
+};
 
 export const FISCH_RODS: FischRod[] = [
   {

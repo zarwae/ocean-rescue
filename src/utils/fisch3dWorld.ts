@@ -1,67 +1,95 @@
 import * as THREE from 'three';
+import {
+  AppraiserTableStyle,
+  FISCH_ISLANDS,
+  FischIsland,
+  ISLAND_NPC_PERSONAS,
+  MerchantStallStyle,
+  NpcHatStyle,
+} from './fischData';
 
 export const WATER_BASE_Y = 0;
 
-export type FischNpcRole = 'merchant' | 'appraiser' | 'angler' | 'merlin' | 'altar' | 'quest' | 'shipwright';
+export type FischNpcRole =
+  | 'merchant'
+  | 'appraiser'
+  | 'angler'
+  | 'merlin'
+  | 'altar'
+  | 'quest'
+  | 'shipwright';
 
 export interface FischNpcSpawn {
   id: string;
   role: FischNpcRole;
   name: string;
   subtitle: string;
-  targetTab: 'shop' | 'altar' | 'quests';
+  dialogue: string;
+  targetTab: 'merchant' | 'appraiser' | 'angler' | 'quest' | 'merlin' | 'altar' | 'shipwright';
   x: number;
   z: number;
   yaw: number;
   shirtHex: string;
   accentHex: string;
+  hatStyle?: NpcHatStyle;
+  stallStyle?: MerchantStallStyle;
+  tableStyle?: AppraiserTableStyle;
 }
 
-export const FISCH_NPC_SPAWNS: FischNpcSpawn[] = [
+const BASE_NPC_SPAWNS: FischNpcSpawn[] = [
   {
     id: 'npc_merchant',
     role: 'merchant',
-    name: 'The Merchant',
-    subtitle: 'Jual Ikan & Toko Rod',
-    targetTab: 'shop',
-    x: -5.6,
-    z: -1.8,
+    name: 'Pak Marlow',
+    subtitle: 'Pedagang Dermaga Moosewood',
+    dialogue: 'Bawa hasil pancingmu untuk ditukar dengan C$ atau tingkatkan joran dan umpanmu di sini.',
+    targetTab: 'merchant',
+    x: -10.6,
+    z: -2.4,
     yaw: 0.45,
     shirtHex: '#876B3A',
     accentHex: '#F6C453',
+    hatStyle: 'captain_cap',
+    stallStyle: 'timber_awning',
   },
   {
     id: 'npc_appraiser',
     role: 'appraiser',
-    name: 'Appraiser',
-    subtitle: 'Ukur Berat & Mutasi',
-    targetTab: 'altar',
-    x: -7.8,
-    z: -6.4,
-    yaw: 0.72,
+    name: 'Nona Clara',
+    subtitle: 'Ahli Timbang Moosewood',
+    dialogue: 'Timbangan saya siap menguji bobot dan peluang Mutasi atau Shiny ikan tangkapanmu.',
+    targetTab: 'appraiser',
+    x: -13.8,
+    z: -10.2,
+    yaw: 0.68,
     shirtHex: '#267472',
     accentHex: '#82AAA1',
+    hatStyle: 'straw',
+    tableStyle: 'brass_scale',
   },
   {
     id: 'npc_angler',
     role: 'angler',
     name: 'The Angler',
     subtitle: 'Pesanan Ikan Harian',
-    targetTab: 'quests',
-    x: 4.8,
-    z: -1.6,
-    yaw: -0.45,
+    dialogue: 'Aku punya daftar tangkapan harian segar dengan bayaran C$ serta paket umpan langka!',
+    targetTab: 'angler',
+    x: 10.2,
+    z: -2.2,
+    yaw: -0.48,
     shirtHex: '#2B6CB0',
     accentHex: '#63B3ED',
+    hatStyle: 'captain_cap',
   },
   {
     id: 'npc_merlin',
     role: 'merlin',
     name: 'Merlin',
-    subtitle: 'Relic & Luck Boost',
-    targetTab: 'altar',
-    x: 7.4,
-    z: -6.2,
+    subtitle: 'Relic, Totem & Luck Boost',
+    dialogue: 'Sihir kuno kepulauan ini bisa membangkitkan keberuntunganmu dengan Enchant Relic dan Totem.',
+    targetTab: 'merlin',
+    x: 13.8,
+    z: -10.0,
     yaw: -0.68,
     shirtHex: '#5B21B6',
     accentHex: '#B794F4',
@@ -71,9 +99,10 @@ export const FISCH_NPC_SPAWNS: FischNpcSpawn[] = [
     role: 'altar',
     name: "Keeper's Altar",
     subtitle: 'Enchant Rod (Malam)',
+    dialogue: 'Saat langit gelap turun, persembahkan 1 Enchant Relic untuk memberkati joranmu.',
     targetTab: 'altar',
     x: 0,
-    z: -9.6,
+    z: -17.6,
     yaw: 0,
     shirtHex: '#4C1D95',
     accentHex: '#C084FC',
@@ -82,65 +111,91 @@ export const FISCH_NPC_SPAWNS: FischNpcSpawn[] = [
     id: 'npc_quest',
     role: 'quest',
     name: 'Penjaga Pulau',
-    subtitle: 'Misi Cerita Pulau',
-    targetTab: 'quests',
-    x: -2.9,
+    subtitle: 'Misi Cerita Nusantara',
+    dialogue: 'Selesaikan ekspedisi pulau untuk membuka joran legendaris dan bonus C$ berlimpah!',
+    targetTab: 'quest',
+    x: -4.4,
     z: 3.4,
-    yaw: 1.1,
+    yaw: 0.95,
     shirtHex: '#2A7B4F',
     accentHex: '#5EC48B',
+    hatStyle: 'straw',
   },
   {
     id: 'npc_shipwright',
     role: 'shipwright',
     name: 'Tukang Kapal',
     subtitle: 'Galangan & Beli Kapal',
-    targetTab: 'shop',
-    x: 3.9,
-    z: 9.2,
-    yaw: -0.9,
+    dialogue: 'Ingin berlayar ke pulau lain? Naik kapal di sisi kiri dermaga [B] atau upgrade armada kapalmu di sini!',
+    targetTab: 'shipwright',
+    x: 5.0,
+    z: 14.3,
+    yaw: -0.82,
     shirtHex: '#9A442C',
     accentHex: '#FBBF24',
+    hatStyle: 'captain_cap',
   },
 ];
 
-export const DEFAULT_MOORED_BOAT_POS = { x: -6.8, z: 10.2, yaw: 0 };
+export const FISCH_NPC_SPAWNS: FischNpcSpawn[] = BASE_NPC_SPAWNS;
 
-export interface FischOutpostBeacon {
-  islandId: 'forsaken_shores' | 'ancient_isle' | 'the_depths';
+export function getIslandNpcSpawns(islandId: string): FischNpcSpawn[] {
+  const persona = ISLAND_NPC_PERSONAS[islandId] ?? ISLAND_NPC_PERSONAS.moosewood;
+  return BASE_NPC_SPAWNS.map((npc) => {
+    if (npc.role === 'merchant') {
+      return {
+        ...npc,
+        name: persona.merchant.name,
+        subtitle: persona.merchant.subtitle,
+        dialogue: persona.merchant.dialogue,
+        shirtHex: persona.merchant.shirtHex,
+        accentHex: persona.merchant.accentHex,
+        hatStyle: persona.merchant.hatStyle,
+        stallStyle: persona.merchant.stallStyle,
+      };
+    }
+    if (npc.role === 'appraiser') {
+      return {
+        ...npc,
+        name: persona.appraiser.name,
+        subtitle: persona.appraiser.subtitle,
+        dialogue: persona.appraiser.dialogue,
+        shirtHex: persona.appraiser.shirtHex,
+        accentHex: persona.appraiser.accentHex,
+        hatStyle: persona.appraiser.hatStyle,
+        tableStyle: persona.appraiser.tableStyle,
+      };
+    }
+    return npc;
+  });
+}
+
+export const DEFAULT_MOORED_BOAT_POS = { x: -9.6, z: 15.0, yaw: 0 };
+
+export interface FischHarborBeacon {
+  islandId: string;
   name: string;
-  minLevel: number;
+  subtitle: string;
   x: number;
   z: number;
   accentHex: string;
+  silhouetteType: FischIsland['silhouetteType'];
 }
 
-export const FISCH_OUTPOST_BEACONS: FischOutpostBeacon[] = [
-  {
-    islandId: 'forsaken_shores',
-    name: 'Forsaken Shores',
-    minLevel: 6,
-    x: -48,
-    z: 36,
-    accentHex: '#F97316',
-  },
-  {
-    islandId: 'ancient_isle',
-    name: 'Ancient Isle',
-    minLevel: 12,
-    x: 50,
-    z: 38,
-    accentHex: '#34D399',
-  },
-  {
-    islandId: 'the_depths',
-    name: 'The Depths Atoll',
-    minLevel: 18,
-    x: 0,
-    z: 68,
-    accentHex: '#38BDF8',
-  },
-];
+export function getNeighborHarborBeacons(activeIslandId: string): FischHarborBeacon[] {
+  const origin = FISCH_ISLANDS.find((i) => i.id === activeIslandId) ?? FISCH_ISLANDS[0];
+  return FISCH_ISLANDS.filter((isl) => isl.id !== origin.id).map((isl) => ({
+    islandId: isl.id,
+    name: isl.name,
+    subtitle: isl.subtitle,
+    x: isl.worldCoords.x - origin.worldCoords.x,
+    z: isl.worldCoords.z - origin.worldCoords.z,
+    accentHex: isl.accentHex,
+    silhouetteType: isl.silhouetteType,
+  }));
+}
+
+export const FISCH_OUTPOST_BEACONS: FischHarborBeacon[] = getNeighborHarborBeacons('moosewood');
 
 // Deterministic GPU-matching ocean wave function (matches GLSL vertex displacement)
 export function waterHeightAt(x: number, z: number, timeSec: number): number {
@@ -152,12 +207,12 @@ export function waterHeightAt(x: number, z: number, timeSec: number): number {
 }
 
 export function isOnWoodenPier(x: number, z: number): boolean {
-  // Main pier extending from plaza edge (z = -0.2) out over water (z = 11.4)
-  if (Math.abs(x) <= 2.35 && z >= -0.2 && z <= 11.4) {
+  // Extended main pier from plaza edge (z = 1.2) out over water (z = 16.4)
+  if (Math.abs(x) <= 2.75 && z >= 1.2 && z <= 16.4) {
     return true;
   }
-  // T-head fishing platform at end of pier
-  if (Math.abs(x) <= 4.8 && z >= 8.4 && z <= 11.6) {
+  // Wide T-head harbor dock at end of pier
+  if (Math.abs(x) <= 6.8 && z >= 13.0 && z <= 16.6) {
     return true;
   }
   return false;
@@ -168,26 +223,26 @@ export function getGroundHeightAt(islandId: string, x: number, z: number): numbe
     return 0.96;
   }
 
-  // Main island plaza & shoreline plateau centered around (0, -6.5)
-  const dx = x / 13.5;
-  const dz = (z + 6.5) / 9.2;
+  // Enlarged island plaza & tiered shoreline plateau centered around (0, -9.5)
+  const dx = x / 22.0;
+  const dz = (z + 9.5) / 14.8;
   const radial = Math.sqrt(dx * dx + dz * dz);
 
-  if (radial <= 1.08) {
-    const gentleSlope = Math.max(0, 1 - radial) * 0.45;
+  if (radial <= 1.06) {
+    const gentleSlope = Math.max(0, 1 - radial) * 0.65;
     const islandExtra =
       islandId === 'roslit_volcano'
-        ? Math.max(0, 1 - Math.hypot(x / 10, (z + 11.5) / 6)) * 0.85
-        : islandId === 'sunstone' || islandId === 'snowcap'
-        ? Math.max(0, 1 - Math.hypot(x / 11, (z + 10) / 6)) * 0.55
+        ? Math.max(0, 1 - Math.hypot(x / 14, (z + 15.5) / 8)) * 1.05
+        : islandId === 'sunstone' || islandId === 'snowcap' || islandId === 'sovereignty'
+        ? Math.max(0, 1 - Math.hypot(x / 15, (z + 14) / 8)) * 0.68
         : 0;
-    return 0.72 + gentleSlope + islandExtra;
+    return 0.74 + gentleSlope + islandExtra;
   }
 
-  // Shallow sand/shore transition
+  // Shallow sandy/rocky coastal reef slope
   if (radial <= 1.28) {
-    const t = (radial - 1.08) / 0.2;
-    return THREE.MathUtils.lerp(0.72, -0.35, t);
+    const t = (radial - 1.06) / 0.22;
+    return THREE.MathUtils.lerp(0.74, -0.38, t);
   }
 
   return -0.8;
@@ -195,8 +250,8 @@ export function getGroundHeightAt(islandId: string, x: number, z: number): numbe
 
 export function isWalkablePosition(x: number, z: number): boolean {
   if (isOnWoodenPier(x, z)) return true;
-  const dx = x / 13.2;
-  const dz = (z + 6.5) / 8.8;
+  const dx = x / 21.8;
+  const dz = (z + 9.5) / 14.6;
   return dx * dx + dz * dz <= 1.02;
 }
 
@@ -214,7 +269,6 @@ export function clampPlayerPosition(
       groundY: getGroundHeightAt(islandId, nextX, nextZ),
     };
   }
-  // Slide along X or Z independently for smooth wall/edge sliding
   if (isWalkablePosition(nextX, prevZ)) {
     return {
       x: nextX,
@@ -239,12 +293,13 @@ export function clampPlayerPosition(
 export function findNearestNpc(
   x: number,
   z: number,
-  maxDistance = 3.2
+  maxDistance = 3.6,
+  spawns: FischNpcSpawn[] = FISCH_NPC_SPAWNS
 ): FischNpcSpawn | null {
   let closest: FischNpcSpawn | null = null;
   let bestDistSq = maxDistance * maxDistance;
 
-  for (const npc of FISCH_NPC_SPAWNS) {
+  for (const npc of spawns) {
     const dx = npc.x - x;
     const dz = npc.z - z;
     const d2 = dx * dx + dz * dz;
@@ -256,19 +311,24 @@ export function findNearestNpc(
   return closest;
 }
 
-export function isBoatBlocked(x: number, z: number): boolean {
-  // World ocean bounds inside 280x280 water plane
-  if (Math.abs(x) > 96 || z < -76 || z > 96) return true;
+export function isBoatBlocked(
+  x: number,
+  z: number,
+  activeIslandId = 'moosewood'
+): boolean {
+  // World ocean bounds inside 440x440 water plane
+  if (Math.abs(x) > 195 || z < -160 || z > 175) return true;
   // Main wooden pier + mooring clearance
-  if (Math.abs(x) <= 3.8 && z >= -1.5 && z <= 12.8) return true;
-  if (Math.abs(x) <= 6.0 && z >= 7.2 && z <= 12.9) return true;
-  // Main island plateau ellipse with boat hull margin
-  const dx = x / 15.6;
-  const dz = (z + 6.5) / 11.2;
+  if (Math.abs(x) <= 4.0 && z >= 0 && z <= 17.8) return true;
+  if (Math.abs(x) <= 7.8 && z >= 11.8 && z <= 18.0) return true;
+  // Main enlarged island plateau ellipse with boat hull margin
+  const dx = x / 24.4;
+  const dz = (z + 9.5) / 17.4;
   if (dx * dx + dz * dz <= 1.0) return true;
-  // Outpost island core collision cylinders
-  for (const beacon of FISCH_OUTPOST_BEACONS) {
-    if (Math.hypot(x - beacon.x, z - beacon.z) < 7.2) {
+  // Neighbor harbor island core collision cylinders
+  const beacons = getNeighborHarborBeacons(activeIslandId);
+  for (const beacon of beacons) {
+    if (Math.hypot(x - beacon.x, z - beacon.z) < 8.6) {
       return true;
     }
   }
@@ -279,22 +339,25 @@ export function resolveBoatPosition(
   prevX: number,
   prevZ: number,
   nextX: number,
-  nextZ: number
+  nextZ: number,
+  activeIslandId = 'moosewood'
 ): { x: number; z: number } {
-  if (!isBoatBlocked(nextX, nextZ)) return { x: nextX, z: nextZ };
-  if (!isBoatBlocked(nextX, prevZ)) return { x: nextX, z: prevZ };
-  if (!isBoatBlocked(prevX, nextZ)) return { x: prevX, z: nextZ };
+  if (!isBoatBlocked(nextX, nextZ, activeIslandId)) return { x: nextX, z: nextZ };
+  if (!isBoatBlocked(nextX, prevZ, activeIslandId)) return { x: nextX, z: prevZ };
+  if (!isBoatBlocked(prevX, nextZ, activeIslandId)) return { x: prevX, z: nextZ };
   return { x: prevX, z: prevZ };
 }
 
-export function findNearestOutpostBeacon(
+export function findNearestHarborBeacon(
   x: number,
   z: number,
-  maxDistance = 15.5
-): FischOutpostBeacon | null {
-  let closest: FischOutpostBeacon | null = null;
+  activeIslandId = 'moosewood',
+  maxDistance = 17.5
+): FischHarborBeacon | null {
+  let closest: FischHarborBeacon | null = null;
   let bestD2 = maxDistance * maxDistance;
-  for (const b of FISCH_OUTPOST_BEACONS) {
+  const beacons = getNeighborHarborBeacons(activeIslandId);
+  for (const b of beacons) {
     const d2 = (b.x - x) * (b.x - x) + (b.z - z) * (b.z - z);
     if (d2 <= bestD2) {
       bestD2 = d2;
@@ -318,7 +381,7 @@ export function computeBobberTargetPosition(
   let targetZ = playerZ + dirZ * dist;
 
   // If the cast distance happens to land over island/pier terrain, extend along the SAME ray until hitting open water
-  while (isWalkablePosition(targetX, targetZ) && dist < 34) {
+  while (isWalkablePosition(targetX, targetZ) && dist < 44) {
     dist += 1.5;
     targetX = playerX + dirX * dist;
     targetZ = playerZ + dirZ * dist;

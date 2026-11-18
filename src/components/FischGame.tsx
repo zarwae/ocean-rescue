@@ -1,29 +1,25 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Anchor,
   Award,
   Backpack,
   BookOpen,
-  ChevronDown,
-  ChevronUp,
-  Compass,
   Coins,
+  Compass,
   Fish,
   Lock,
-  Maximize2,
-  Minimize2,
-  Moon,
+  Navigation,
   PackageOpen,
   Search,
   Ship,
   ShoppingBag,
   Sparkles,
   Sun,
+  Moon,
   Unlock,
   Volume2,
   VolumeX,
   Wand2,
-  Waves,
+  X,
 } from 'lucide-react';
 import type { ThemeMode } from '../hooks/useTheme';
 import { useGameFullscreen } from '../hooks/useGameFullscreen';
@@ -79,7 +75,12 @@ interface FischGameProps {
   theme?: ThemeMode;
 }
 
-type FischSubTab = 'islands' | 'inventory' | 'shop' | 'altar' | 'quests' | 'bestiary';
+type FischPopupState =
+  | null
+  | { kind: 'npc'; npc: FischNpcSpawn }
+  | { kind: 'bag' }
+  | { kind: 'bestiary' }
+  | { kind: 'map' };
 
 interface CatchShowcase {
   id: number;
@@ -112,7 +113,8 @@ export const FischGame: React.FC<FischGameProps> = ({
   theme = 'dark',
 }) => {
   const [save, setSave] = useState<FischSaveState>(() => loadFischSave());
-  const [activeTab, setActiveTab] = useState<FischSubTab>('islands');
+  const [activePopup, setActivePopup] = useState<FischPopupState>(null);
+  const [compassTargetIslandId, setCompassTargetIslandId] = useState<string | null>(null);
   const [phase, setPhase] = useState<FischPhase>('idle');
 
   // Dynamic World Environment
@@ -125,10 +127,11 @@ export const FischGame: React.FC<FischGameProps> = ({
   const [shakeTarget, setShakeTarget] = useState<ShakeTarget | null>(null);
   const [statusBanner, setStatusBanner] = useState<string | null>(null);
   const [catchShowcase, setCatchShowcase] = useState<CatchShowcase | null>(null);
-  const [lastCatchVisual, setLastCatchVisual] = useState<CatchVisualTrigger | null>(null);
-  const [dockCollapsed, setDockCollapsed] = useState<boolean>(false);
   const [appraiseSelectedUid, setAppraiseSelectedUid] = useState<string>('');
-  const [enchantTargetRodId, setEnchantTargetRodId] = useState<string>(() => loadFischSave().equippedRodId);
+  const [enchantTargetRodId, setEnchantTargetRodId] = useState<string>(
+    () => loadFischSave().equippedRodId
+  );
+  const [lastCatchVisual, setLastCatchVisual] = useState<CatchVisualTrigger | null>(null);
 
   // Bestiary Filters
   const [bestiarySearch, setBestiarySearch] = useState('');
@@ -136,7 +139,6 @@ export const FischGame: React.FC<FischGameProps> = ({
   const [bestiaryRarityFilter, setBestiaryRarityFilter] = useState<string>('all');
   const [bestiaryStatusFilter, setBestiaryStatusFilter] = useState<'all' | 'caught' | 'missing'>('all');
 
-  const dockSectionRef = useRef<HTMLDivElement | null>(null);
   const recordedSessionRef = useRef(false);
   const { containerRef: fischFsRef, isFullscreen, toggleFullscreen } = useGameFullscreen();
 
@@ -170,6 +172,17 @@ export const FischGame: React.FC<FischGameProps> = ({
   useEffect(() => {
     soundEffects.isMuted = save.soundMuted;
   }, [save.soundMuted]);
+
+  // Close pop-ups with Escape key
+  useEffect(() => {
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && activePopup) {
+        setActivePopup(null);
+      }
+    };
+    window.addEventListener('keydown', onEsc);
+    return () => window.removeEventListener('keydown', onEsc);
+  }, [activePopup]);
 
   const merlinLuckActive = save.merlinLuckUntil > nowMs;
   const auroraActive = save.auroraTotemUntil > nowMs || weather === 'Aurora';
@@ -217,7 +230,7 @@ export const FischGame: React.FC<FischGameProps> = ({
   const statsRef = useRef(effectiveStats);
   statsRef.current = effectiveStats;
 
-  // World Clock & Weather Cycle (Every 60s rotates Day/Night or Weather)
+  // World Clock & Weather Cycle
   useEffect(() => {
     const tick = window.setInterval(() => {
       setNowMs(Date.now());
@@ -225,7 +238,7 @@ export const FischGame: React.FC<FischGameProps> = ({
 
     const envCycle = window.setInterval(() => {
       setTimeOfDay((prev) => (prev === 'Day' ? 'Night' : 'Day'));
-      setWeather((prev) => {
+      setWeather(() => {
         const roll = Math.random();
         if (roll < 0.42) return 'Clear';
         if (roll < 0.62) return 'Rain';
@@ -357,7 +370,7 @@ export const FischGame: React.FC<FischGameProps> = ({
           firstCaughtAt: existingBestiary?.firstCaughtAt ?? Date.now(),
         };
 
-        let nextCredits = prev.credits;
+        const nextCredits = prev.credits;
         let nextRelicCount = prev.relicCount;
         const nextCrateCounts = { ...prev.crateCounts };
         const nextInventory = [...prev.inventory];
@@ -384,7 +397,7 @@ export const FischGame: React.FC<FischGameProps> = ({
           nextInventory.unshift(primaryCaughtItem);
         }
 
-        // Rod of the Depths Spirit Passive: every 3rd catch spawns a free bonus fish!
+        // Rod of the Depths Spirit Passive: every 3rd catch spawns a free bonus fish
         let spiritBonusName: string | undefined;
         const nextTotalCatches = prev.totalCatches + 1;
         if (rod.spiritBonusEvery && nextTotalCatches % rod.spiritBonusEvery === 0) {
@@ -485,6 +498,7 @@ export const FischGame: React.FC<FischGameProps> = ({
       eng.perfectCast = false;
       setPhase('charging');
       setCatchShowcase(null);
+      setActivePopup(null);
     }
   }, []);
 
@@ -501,7 +515,7 @@ export const FischGame: React.FC<FischGameProps> = ({
     }
   }, []);
 
-  // 60fps Fishing State Stepper (Invoked smoothly inside Fisch3DViewport's Three.js loop)
+  // 60fps Fishing State Stepper (Invoked inside Fisch3DViewport's Three.js loop)
   const stepFishing = useCallback(
     (dt: number, emitSplash: (x: number, y: number, z: number) => void) => {
       const eng = engineRef.current;
@@ -566,7 +580,7 @@ export const FischGame: React.FC<FischGameProps> = ({
       } else if (eng.phase === 'reeling' && eng.hookedSpecies) {
         const physics = getReelPhysics(eng.hookedSpecies, statsRef.current);
 
-        // Control Bar Physics (Authentic Fisch acceleration & bounce)
+        // Control Bar Physics
         const accel = 2.65;
         const gravity = 2.25;
         if (eng.holdingInput) {
@@ -586,7 +600,7 @@ export const FischGame: React.FC<FischGameProps> = ({
           eng.reelBarVel = Math.min(0, -eng.reelBarVel * 0.25);
         }
 
-        // Fish erratic darting AI inside track
+        // Fish erratic darting AI
         eng.reelFishTimer -= dt;
         if (eng.reelFishTimer <= 0) {
           eng.reelFishTimer =
@@ -630,15 +644,23 @@ export const FischGame: React.FC<FischGameProps> = ({
     [finalizeCatchSuccess, showTempBanner, spawnShakeButton]
   );
 
-  const handleInteractNpc = useCallback(
-    (npc: FischNpcSpawn) => {
+  // Open NPC Pop-up Modal directly upon interaction
+  const handleInteractNpc = useCallback((npc: FischNpcSpawn) => {
+    soundEffects.playBubblePop();
+    setCatchShowcase(null);
+    setActivePopup({ kind: 'npc', npc });
+  }, []);
+
+  // Harbor Boat Arrival (Boat-only island travel, no level restrictions)
+  const handleSailToOutpost = useCallback(
+    (islandId: string) => {
+      const target = FISCH_ISLANDS.find((i) => i.id === islandId);
+      if (!target) return;
       soundEffects.playBubblePop();
-      setActiveTab(npc.targetTab);
-      setDockCollapsed(false);
-      showTempBanner(`${npc.name}: ${npc.subtitle}`);
-      window.setTimeout(() => {
-        dockSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }, 60);
+      setSave((prev) => ({ ...prev, currentIslandId: target.id }));
+      setCompassTargetIslandId((prev) => (prev === target.id ? null : prev));
+      setActivePopup(null);
+      showTempBanner(`Kapal berlabuh di ${target.name}!`);
     },
     [showTempBanner]
   );
@@ -692,6 +714,7 @@ export const FischGame: React.FC<FischGameProps> = ({
       soundEffects.playBubblePop();
       setSave((prev) => ({ ...prev, equippedRodId: rod.id }));
       setEnchantTargetRodId(rod.id);
+      showTempBanner(`Memasang ${rod.name}!`);
       return;
     }
     if (save.level < rod.minLevel) {
@@ -743,22 +766,6 @@ export const FischGame: React.FC<FischGameProps> = ({
     showTempBanner(`Berhasil membeli & meluncurkan ${boat.name}! Naik kapal di dermaga [B].`);
   };
 
-  const handleSailToOutpost = useCallback(
-    (islandId: string) => {
-      const target = FISCH_ISLANDS.find((i) => i.id === islandId);
-      if (!target) return;
-      if (saveRef.current.level < target.minLevel) {
-        soundEffects.playWarning();
-        showTempBanner(`Butuh Level ${target.minLevel} untuk berlabuh di ${target.name}.`);
-        return;
-      }
-      soundEffects.playBubblePop();
-      setSave((prev) => ({ ...prev, currentIslandId: target.id }));
-      showTempBanner(`Berhasil berlabuh di ${target.name}!`);
-    },
-    [showTempBanner]
-  );
-
   const handleBuyBait = (baitId: string, qty: number) => {
     const bait = findBait(baitId);
     if (!bait || !bait.shopPrice) return;
@@ -797,7 +804,7 @@ export const FischGame: React.FC<FischGameProps> = ({
       },
     }));
     const sp = FISCH_SPECIES.find((s) => s.id === crateId);
-    showTempBanner(`Membeli 1× ${sp?.name ?? 'Crate'} (buka di tab Tas & Peti).`);
+    showTempBanner(`Membeli 1× ${sp?.name ?? 'Crate'} (buka dari ikon Tas).`);
   };
 
   const handleOpenCrate = (crateId: string) => {
@@ -1011,102 +1018,147 @@ export const FischGame: React.FC<FischGameProps> = ({
 
   const xpNeeded = getXpForNextLevel(save.level);
   const xpPct = Math.min(100, Math.round((save.xp / xpNeeded) * 100));
+  const totalCrates = Object.values(save.crateCounts).reduce((a, b) => a + b, 0);
+
+  // Top-Left Compact Floating HUD Bar
+  const hudTopLeft = (
+    <div className="px-3 py-1.5 rounded-xl bg-[#F7F6F1]/95 dark:bg-[#061116]/92 border border-[#0B1E27]/15 dark:border-[#82AAA1]/30 shadow-md flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] tabular-nums">
+      <div className="flex items-center gap-2">
+        <span className="font-display font-bold text-xs text-[#1D6664] dark:text-[#82AAA1]">
+          Lv. {save.level}
+        </span>
+        <div className="w-16 sm:w-20 h-1.5 rounded-full bg-[#DCE6E4] dark:bg-[#102B38] overflow-hidden">
+          <div
+            className="h-full bg-[#267472] dark:bg-[#82AAA1] transition-all duration-300"
+            style={{ width: `${xpPct}%` }}
+          />
+        </div>
+      </div>
+
+      <span className="text-[#0B1E27]/20 dark:text-[#EDEBE3]/20" aria-hidden="true">·</span>
+
+      <div className="flex items-center gap-1 font-bold text-[#876B3A] dark:text-[#F6C453]">
+        <Coins className="w-3.5 h-3.5" />
+        <span>{formatCredits(save.credits)}</span>
+      </div>
+
+      <span className="text-[#0B1E27]/20 dark:text-[#EDEBE3]/20" aria-hidden="true">·</span>
+
+      <span className="font-semibold text-[#0B1E27] dark:text-[#EDEBE3]">
+        {currentIsland.name}
+      </span>
+
+      <span className="hidden sm:inline text-[#0B1E27]/20 dark:text-[#EDEBE3]/20" aria-hidden="true">·</span>
+
+      <span className="hidden sm:inline-flex items-center gap-1 text-[#425B66] dark:text-[#98ACB5]">
+        {timeOfDay === 'Night' ? (
+          <Moon className="w-3 h-3 text-[#7B3FE4] dark:text-[#B794F4]" />
+        ) : (
+          <Sun className="w-3 h-3 text-[#876B3A] dark:text-[#F6C453]" />
+        )}
+        <span>
+          {timeOfDay === 'Night' ? 'Malam' : 'Siang'} · {auroraActive ? 'Aurora' : weather} · {season}
+        </span>
+      </span>
+
+      <span className="hidden md:inline text-[#0B1E27]/20 dark:text-[#EDEBE3]/20" aria-hidden="true">·</span>
+
+      <span className="hidden md:inline text-[#425B66] dark:text-[#98ACB5]">
+        <strong className="text-[#0B1E27] dark:text-[#EDEBE3]">{equippedRod.name}</strong>
+        {equippedEnchant ? ` [${equippedEnchant.name}]` : ''}
+        {equippedBait ? ` · ${equippedBait.name} (${save.baitCounts[equippedBait.id]})` : ''}
+      </span>
+
+      {merlinLuckActive && (
+        <span className="text-[#1D6664] dark:text-[#5EC48B] font-bold">
+          Merlin +65%
+        </span>
+      )}
+    </div>
+  );
+
+  // Top-Right Corner HUD Icon Buttons (Tas, Bestiary, Peta, Suara)
+  const hudTopRight = (
+    <>
+      <button
+        type="button"
+        onClick={() =>
+          setActivePopup((p) => (p?.kind === 'bag' ? null : { kind: 'bag' }))
+        }
+        className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold flex items-center gap-1.5 shadow-md cursor-pointer transition-colors ${
+          activePopup?.kind === 'bag'
+            ? 'bg-[#267472] text-[#F7F6F1] border-[#5EC48B]'
+            : 'bg-[#F7F6F1]/95 dark:bg-[#061116]/92 border-[#0B1E27]/15 dark:border-[#82AAA1]/28 hover:border-[#267472]'
+        }`}
+        title="Buka Tas Ikan, Peti & Joran"
+      >
+        <Backpack className="w-3.5 h-3.5" />
+        <span>Tas ({save.inventory.length + totalCrates})</span>
+      </button>
+
+      <button
+        type="button"
+        onClick={() =>
+          setActivePopup((p) => (p?.kind === 'bestiary' ? null : { kind: 'bestiary' }))
+        }
+        className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold flex items-center gap-1.5 shadow-md cursor-pointer transition-colors ${
+          activePopup?.kind === 'bestiary'
+            ? 'bg-[#267472] text-[#F7F6F1] border-[#5EC48B]'
+            : 'bg-[#F7F6F1]/95 dark:bg-[#061116]/92 border-[#0B1E27]/15 dark:border-[#82AAA1]/28 hover:border-[#267472]'
+        }`}
+        title="Buka Bestiary Samudra"
+      >
+        <BookOpen className="w-3.5 h-3.5" />
+        <span className="hidden sm:inline">Bestiary</span>
+        <span className="tabular-nums">({discoveredCount}/{FISCH_SPECIES.length})</span>
+      </button>
+
+      <button
+        type="button"
+        onClick={() =>
+          setActivePopup((p) => (p?.kind === 'map' ? null : { kind: 'map' }))
+        }
+        className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold flex items-center gap-1.5 shadow-md cursor-pointer transition-colors ${
+          activePopup?.kind === 'map'
+            ? 'bg-[#267472] text-[#F7F6F1] border-[#5EC48B]'
+            : 'bg-[#F7F6F1]/95 dark:bg-[#061116]/92 border-[#0B1E27]/15 dark:border-[#82AAA1]/28 hover:border-[#267472]'
+        }`}
+        title="Buka Peta Laut & Kompas Kepulauan"
+      >
+        <Compass className="w-3.5 h-3.5" />
+        <span className="hidden sm:inline">Peta</span>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => setSave((prev) => ({ ...prev, soundMuted: !prev.soundMuted }))}
+        className="p-1.5 rounded-lg bg-[#F7F6F1]/95 dark:bg-[#061116]/92 border border-[#0B1E27]/15 dark:border-[#82AAA1]/28 hover:border-[#267472] shadow-md cursor-pointer"
+        title={save.soundMuted ? 'Aktifkan Suara' : 'Bisukan Suara'}
+      >
+        {save.soundMuted ? (
+          <VolumeX className="w-3.5 h-3.5 text-[#425B66] dark:text-[#98ACB5]" />
+        ) : (
+          <Volume2 className="w-3.5 h-3.5 text-[#1D6664] dark:text-[#82AAA1]" />
+        )}
+      </button>
+    </>
+  );
 
   return (
     <div
       ref={fischFsRef}
-      className={`bg-[#F7F6F1] dark:bg-[#091C25] text-[#0B1E27] dark:text-[#EDEBE3] border border-[#0B1E27]/12 dark:border-[#82AAA1]/18 shadow-2xl select-none transition-colors duration-300 ${
+      className={`text-[#0B1E27] dark:text-[#EDEBE3] select-none ${
         isFullscreen
-          ? 'fixed inset-0 z-50 w-screen h-[100dvh] rounded-none overflow-y-auto flex flex-col justify-between'
-          : 'rounded-2xl overflow-hidden'
+          ? 'fixed inset-0 z-50 w-screen h-[100dvh] flex flex-col bg-[#061116] overflow-hidden'
+          : 'relative rounded-2xl overflow-hidden shadow-2xl border border-[#0B1E27]/15 dark:border-[#82AAA1]/22 bg-[#081A24]'
       }`}
     >
-      {/* Top World & Player HUD */}
-      <div className="px-4 sm:px-5 py-3 bg-[#ECEAE1]/95 dark:bg-[#061116]/90 border-b border-[#0B1E27]/10 dark:border-[#82AAA1]/15 flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex flex-wrap items-center gap-4 tabular-nums">
-          {/* Level & XP Bar */}
-          <div className="flex items-center gap-2.5">
-            <span className="font-display font-bold text-sm text-[#1D6664] dark:text-[#82AAA1]">
-              Lv. {save.level}
-            </span>
-            <div className="w-24 sm:w-28 h-2 rounded-full bg-[#DCE6E4] dark:bg-[#102B38] overflow-hidden">
-              <div
-                className="h-full bg-[#267472] dark:bg-[#82AAA1] transition-all duration-300"
-                style={{ width: `${xpPct}%` }}
-              />
-            </div>
-            <span className="text-[11px] text-[#425B66] dark:text-[#98ACB5]">
-              {save.xp}/{xpNeeded} XP
-            </span>
-          </div>
-
-          <span className="text-[#0B1E27]/20 dark:text-[#EDEBE3]/20" aria-hidden="true">
-            ·
-          </span>
-
-          {/* Credits (C$) */}
-          <div className="flex items-center gap-1.5 font-semibold text-[#876B3A] dark:text-[#F6C453]">
-            <Coins className="w-3.5 h-3.5" />
-            <span>{formatCredits(save.credits)}</span>
-          </div>
-
-          <span className="hidden md:inline text-[#0B1E27]/20 dark:text-[#EDEBE3]/20" aria-hidden="true">
-            ·
-          </span>
-
-          <span className="hidden md:inline text-[#425B66] dark:text-[#98ACB5]">
-            Bestiary {discoveredCount}/{FISCH_SPECIES.length} ({bestiaryPercent}%)
-          </span>
-        </div>
-
-        {/* Right: Island · Time · Weather · Season · Mute */}
-        <div className="flex flex-wrap items-center gap-3 text-[11px] tabular-nums">
-          <span className="font-semibold text-[#0B1E27] dark:text-[#EDEBE3]">
-            {currentIsland.name}
-          </span>
-          <span className="text-[#0B1E27]/20 dark:text-[#EDEBE3]/20" aria-hidden="true">
-            ·
-          </span>
-          <span className="flex items-center gap-1 text-[#425B66] dark:text-[#98ACB5]">
-            {timeOfDay === 'Night' ? (
-              <Moon className="w-3.5 h-3.5 text-[#7B3FE4] dark:text-[#B794F4]" />
-            ) : (
-              <Sun className="w-3.5 h-3.5 text-[#876B3A] dark:text-[#F6C453]" />
-            )}
-            <span>{timeOfDay === 'Night' ? 'Malam' : 'Siang'}</span>
-          </span>
-          <span className="text-[#425B66] dark:text-[#98ACB5]">
-            {auroraActive ? 'Aurora' : weather} · {season}
-          </span>
-          {merlinLuckActive && (
-            <span className="text-[#1D6664] dark:text-[#5EC48B] font-semibold">
-              Merlin +65% Luck
-            </span>
-          )}
-          <button
-            onClick={() => setSave((prev) => ({ ...prev, soundMuted: !prev.soundMuted }))}
-            className="p-1.5 rounded-lg hover:bg-[#0B1E27]/10 dark:hover:bg-[#EDEBE3]/10 text-[#425B66] dark:text-[#98ACB5] cursor-pointer"
-            title={save.soundMuted ? 'Aktifkan Suara' : 'Bisukan Suara'}
-          >
-            {save.soundMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-          </button>
-          <button
-            onClick={toggleFullscreen}
-            className="p-1.5 rounded-lg hover:bg-[#0B1E27]/10 dark:hover:bg-[#EDEBE3]/10 text-[#425B66] dark:text-[#98ACB5] cursor-pointer"
-            title={isFullscreen ? 'Keluar Layar Penuh (Esc)' : 'Layar Penuh'}
-          >
-            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-          </button>
-        </div>
-      </div>
-
-      {/* Main 3D Roblox Interactive World Stage */}
+      {/* Pure 3D Roblox Interactive World Stage (No Bottom Menu) */}
       <Fisch3DViewport
         theme={theme}
         island={currentIsland}
         rod={equippedRod}
         boat={equippedBoat}
-        playerLevel={save.level}
         timeOfDay={timeOfDay}
         weather={weather}
         auroraActive={auroraActive}
@@ -1114,6 +1166,7 @@ export const FischGame: React.FC<FischGameProps> = ({
         engineRef={engineRef}
         shakeTarget={shakeTarget}
         lastCatchVisual={lastCatchVisual}
+        compassTargetIslandId={compassTargetIslandId}
         onStepFishing={stepFishing}
         onBeginCastOrReel={beginCharge}
         onReleaseInput={releaseInput}
@@ -1123,19 +1176,47 @@ export const FischGame: React.FC<FischGameProps> = ({
         isFullscreen={isFullscreen}
         onToggleFullscreen={toggleFullscreen}
         statusBanner={statusBanner}
+        hudTopLeft={hudTopLeft}
+        hudTopRight={hudTopRight}
       >
-        {/* Catch Showcase Floating Summary Card (No backdrop-filter over WebGL) */}
-        {catchShowcase && phase === 'idle' && (
+        {/* Catch Showcase Floating Summary Card */}
+        {catchShowcase && phase === 'idle' && !activePopup && (
           <div
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
             className="absolute top-14 right-3 z-20 w-72 sm:w-80 rounded-xl bg-[#F7F6F1] dark:bg-[#061116] border border-[#0B1E27]/20 dark:border-[#82AAA1]/35 p-3.5 shadow-2xl space-y-2"
           >
-            {catchShowcase.lineSnapped ? (
-              <>
+            <div className="flex items-start justify-between gap-2">
+              {catchShowcase.lineSnapped ? (
                 <div className="text-[11px] font-semibold uppercase tracking-wider text-[#B84F3C] dark:text-[#D98270]">
                   Senar Putus! (Melebihi Max Kg)
                 </div>
+              ) : (
+                <span
+                  className="text-[11px] font-bold uppercase tracking-wider"
+                  style={{
+                    color:
+                      theme === 'dark'
+                        ? RARITY_COLORS[catchShowcase.species.rarity].dark
+                        : RARITY_COLORS[catchShowcase.species.rarity].light,
+                  }}
+                >
+                  {catchShowcase.species.rarity}
+                  {catchShowcase.isNewBestiary ? ' · Bestiary Baru!' : ''}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => setCatchShowcase(null)}
+                className="p-0.5 rounded hover:bg-[#0B1E27]/10 dark:hover:bg-[#EDEBE3]/10 cursor-pointer"
+                aria-label="Tutup kartu tangkapan"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {catchShowcase.lineSnapped ? (
+              <>
                 <div className="font-display text-base font-bold">
                   {catchShowcase.species.name} ({catchShowcase.weightKg} kg)
                 </div>
@@ -1145,24 +1226,6 @@ export const FischGame: React.FC<FischGameProps> = ({
               </>
             ) : (
               <>
-                <div className="flex items-center justify-between gap-2 text-[11px]">
-                  <span
-                    className="font-bold uppercase tracking-wider"
-                    style={{
-                      color:
-                        theme === 'dark'
-                          ? RARITY_COLORS[catchShowcase.species.rarity].dark
-                          : RARITY_COLORS[catchShowcase.species.rarity].light,
-                    }}
-                  >
-                    {catchShowcase.species.rarity}
-                    {catchShowcase.isNewBestiary ? ' · Entri Bestiary Baru!' : ''}
-                  </span>
-                  <span className="text-[#1D6664] dark:text-[#82AAA1] font-semibold tabular-nums">
-                    +{catchShowcase.xpGained} XP
-                  </span>
-                </div>
-
                 <div className="flex items-baseline justify-between gap-2">
                   <div className="font-display text-base font-bold leading-tight">
                     {catchShowcase.isGiant ? 'Giant ' : catchShowcase.isTiny ? 'Tiny ' : ''}
@@ -1178,18 +1241,23 @@ export const FischGame: React.FC<FischGameProps> = ({
                   </span>
                 </div>
 
-                <div className="text-[11px] text-[#425B66] dark:text-[#98ACB5]">
-                  {[
-                    catchShowcase.isShiny ? 'Shiny (1.85×)' : null,
-                    catchShowcase.isSparkling ? 'Sparkling (1.85×)' : null,
-                    catchShowcase.species.isCrate
-                      ? 'Disimpan di Tas Peti'
-                      : catchShowcase.species.isRelic
-                      ? '+1 Enchant Relic di Tas Altar'
-                      : `Estimasi ${formatCredits(catchShowcase.sellValue)}`,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}
+                <div className="flex items-center justify-between text-[11px] text-[#425B66] dark:text-[#98ACB5] tabular-nums">
+                  <span>
+                    {[
+                      catchShowcase.isShiny ? 'Shiny (1.85×)' : null,
+                      catchShowcase.isSparkling ? 'Sparkling (1.85×)' : null,
+                      catchShowcase.species.isCrate
+                        ? 'Disimpan di Tas Peti'
+                        : catchShowcase.species.isRelic
+                        ? '+1 Enchant Relic'
+                        : `Estimasi ${formatCredits(catchShowcase.sellValue)}`,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </span>
+                  <span className="text-[#1D6664] dark:text-[#82AAA1] font-semibold">
+                    +{catchShowcase.xpGained} XP
+                  </span>
                 </div>
 
                 {catchShowcase.spiritBonusName && (
@@ -1233,1123 +1301,1223 @@ export const FischGame: React.FC<FischGameProps> = ({
             )}
           </div>
         )}
-      </Fisch3DViewport>
 
-      {/* Equipped Loadout Strip */}
-      <div className="px-4 sm:px-5 py-3 bg-[#ECEAE1]/75 dark:bg-[#061116]/75 border-b border-[#0B1E27]/10 dark:border-[#82AAA1]/15 flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span
-              className="w-3 h-3 rounded-full shrink-0"
-              style={{ backgroundColor: equippedRod.colorHex }}
-            />
-            <span className="font-semibold">{equippedRod.name}</span>
-            {equippedEnchant && (
-              <span className="text-[#7B3FE4] dark:text-[#B794F4] font-semibold">
-                [{equippedEnchant.name}]
-              </span>
-            )}
-          </div>
-          <span className="text-[#425B66] dark:text-[#98ACB5] tabular-nums">
-            Lure {effectiveStats.lureSpeed >= 0 ? `+${effectiveStats.lureSpeed}` : effectiveStats.lureSpeed}% ·
-            Luck {effectiveStats.luck >= 0 ? `+${effectiveStats.luck}` : effectiveStats.luck}% ·
-            Res {effectiveStats.resilience}% ·
-            Max {effectiveStats.maxKg >= 999999 ? '∞' : `${effectiveStats.maxKg.toLocaleString()} kg`}
-          </span>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 tabular-nums">
-          <span className="flex items-center gap-1.5 text-[#425B66] dark:text-[#98ACB5]">
-            <Ship className="w-3.5 h-3.5 text-[#1D6664] dark:text-[#82AAA1]" />
-            <strong className="text-[#0B1E27] dark:text-[#EDEBE3]">{equippedBoat.name}</strong>
-          </span>
-          <span className="text-[#0B1E27]/20 dark:text-[#EDEBE3]/20" aria-hidden="true">
-            ·
-          </span>
-          <span className="text-[#425B66] dark:text-[#98ACB5]">
-            Umpan:{' '}
-            <strong className="text-[#0B1E27] dark:text-[#EDEBE3]">
-              {equippedBait
-                ? `${equippedBait.name} (${save.baitCounts[equippedBait.id]})`
-                : 'Tanpa Umpan'}
-            </strong>
-          </span>
-          <span className="text-[#0B1E27]/20 dark:text-[#EDEBE3]/20" aria-hidden="true">
-            ·
-          </span>
-          <span className="text-[#1D6664] dark:text-[#82AAA1] font-semibold">
-            Streak {save.streak}×
-          </span>
-          {phase === 'idle' && (
-            <button
-              onClick={() => {
-                beginCharge();
-                window.setTimeout(() => {
-                  engineRef.current.castPower = 0.86;
-                  releaseInput();
-                }, 140);
-              }}
-              className="px-3.5 py-1.5 rounded-lg bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1] text-xs font-semibold cursor-pointer"
+        {/* POP-UP MODAL SYSTEM (Zero backdrop-filter over WebGL) */}
+        {activePopup && (
+          <div
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => setActivePopup(null)}
+            className="absolute inset-0 z-30 bg-[#040D12]/68 flex items-center justify-center p-3 sm:p-5"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-4xl max-h-[86vh] flex flex-col rounded-2xl bg-[#F7F6F1] dark:bg-[#091C25] text-[#0B1E27] dark:text-[#EDEBE3] border border-[#0B1E27]/20 dark:border-[#82AAA1]/35 shadow-2xl overflow-hidden"
             >
-              Lempar Cepat
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Sub-Navigation Tabs (6 Functional Areas) + Collapsible Dock Toggle */}
-      <div
-        ref={dockSectionRef}
-        className="px-4 sm:px-5 pt-2.5 border-b border-[#0B1E27]/10 dark:border-[#82AAA1]/15 flex items-center justify-between gap-2"
-      >
-        <div className="flex items-center gap-1 overflow-x-auto">
-          {(
-            [
-              { id: 'islands', label: 'Pulau & Cuaca', icon: Compass },
-              { id: 'inventory', label: `Tas (${save.inventory.length})`, icon: Backpack },
-              { id: 'shop', label: 'Merchant & Toko', icon: ShoppingBag },
-              { id: 'altar', label: 'Appraiser & Altar', icon: Wand2 },
-              { id: 'quests', label: 'Quest NPC', icon: Award },
-              { id: 'bestiary', label: `Bestiary (${discoveredCount}/${FISCH_SPECIES.length})`, icon: BookOpen },
-            ] as const
-          ).map((tab) => {
-            const Icon = tab.icon;
-            const active = activeTab === tab.id && !dockCollapsed;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id);
-                  setDockCollapsed(false);
-                }}
-                className={`px-3.5 py-2.5 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                  active
-                    ? 'border-[#1D6664] text-[#1D6664] dark:border-[#82AAA1] dark:text-[#82AAA1]'
-                    : 'border-transparent text-[#425B66] hover:text-[#0B1E27] dark:text-[#8FA3AC] dark:hover:text-[#EDEBE3]'
-                }`}
+              {/* Modal Header */}
+              <div
+                className="px-4 sm:px-5 py-3.5 bg-[#ECEAE1] dark:bg-[#061116] border-b border-[#0B1E27]/12 dark:border-[#82AAA1]/20 flex items-start justify-between gap-3 shrink-0"
+                style={
+                  activePopup.kind === 'npc'
+                    ? { borderTop: `4px solid ${activePopup.npc.accentHex}` }
+                    : undefined
+                }
               >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setDockCollapsed((c) => !c)}
-          className="px-2.5 py-1.5 mb-1 rounded-lg bg-[#ECEAE1] hover:bg-[#DFDDD2] dark:bg-[#0E2632] dark:hover:bg-[#163646] text-[11px] font-semibold flex items-center gap-1 shrink-0 cursor-pointer"
-          title={dockCollapsed ? 'Tampilkan Panel Bawah' : 'Sembunyikan Panel Bawah'}
-        >
-          {dockCollapsed ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          <span className="hidden sm:inline">{dockCollapsed ? 'Buka Panel' : 'Tutup Panel'}</span>
-        </button>
-      </div>
-
-      {/* Tab Content Workspace */}
-      {!dockCollapsed && (
-      <div className="p-4 sm:p-5 space-y-5">
-        {/* TAB 1: ISLANDS & WEATHER TOTEMS */}
-        {activeTab === 'islands' && (
-          <div className="space-y-5">
-            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#0B1E27]/10 dark:border-[#82AAA1]/15">
-              <div>
-                <h3 className="font-display text-lg font-semibold">Peta Ekspedisi Kepulauan Fisch</h3>
-                <p className="text-xs text-[#425B66] dark:text-[#98ACB5]">
-                  Setiap pulau memiliki ekosistem spesies unik, kondisi cuaca, dan syarat level pelayaran.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  onClick={() => {
-                    if (save.credits < 600) {
-                      soundEffects.playWarning();
-                      showTempBanner('Sundial Totem butuh 600 C$.');
-                      return;
-                    }
-                    soundEffects.playFischEnchant();
-                    setSave((p) => ({ ...p, credits: p.credits - 600 }));
-                    setTimeOfDay((t) => (t === 'Day' ? 'Night' : 'Day'));
-                    showTempBanner('Sundial Totem diaktifkan! Waktu Siang ↔ Malam berganti.');
-                  }}
-                  className="px-3 py-1.5 rounded-lg bg-[#ECEAE1] hover:bg-[#DFDDD2] dark:bg-[#0E2632] dark:hover:bg-[#163646] border border-[#0B1E27]/12 dark:border-[#82AAA1]/20 text-xs font-semibold cursor-pointer"
-                >
-                  Sundial Totem (600 C$)
-                </button>
-                <button
-                  onClick={() => {
-                    if (save.credits < 8500) {
-                      soundEffects.playWarning();
-                      showTempBanner('Aurora Totem butuh 8,500 C$.');
-                      return;
-                    }
-                    soundEffects.playFischEnchant();
-                    setWeather('Aurora');
-                    setTimeOfDay('Night');
-                    setSave((p) => ({
-                      ...p,
-                      credits: p.credits - 8500,
-                      auroraTotemUntil: Date.now() + 90000,
-                    }));
-                    showTempBanner('Aurora Borealis muncul di langit! +140% Luck selama 90 detik.');
-                  }}
-                  className="px-3 py-1.5 rounded-lg bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1] text-xs font-semibold cursor-pointer"
-                >
-                  Aurora Totem (8,500 C$)
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
-              {FISCH_ISLANDS.map((isl) => {
-                const unlocked = save.level >= isl.minLevel;
-                const isHere = save.currentIslandId === isl.id;
-                const islandTotal = FISCH_SPECIES.filter((s) => s.islandId === isl.id).length;
-                const islandFound = FISCH_SPECIES.filter(
-                  (s) => s.islandId === isl.id && Boolean(save.bestiary[s.id])
-                ).length;
-
-                return (
-                  <div
-                    key={isl.id}
-                    className={`rounded-xl p-3.5 border flex flex-col justify-between gap-3 transition-colors ${
-                      isHere
-                        ? 'bg-white dark:bg-[#0E2632] border-[#267472] dark:border-[#82AAA1]'
-                        : 'bg-[#ECEAE1]/55 dark:bg-[#061116]/60 border-[#0B1E27]/10 dark:border-[#82AAA1]/15'
-                    }`}
-                  >
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between gap-2 text-[11px]">
-                        <span className="font-semibold text-[#1D6664] dark:text-[#82AAA1] flex items-center gap-1">
-                          <span>Min Lv. {isl.minLevel}</span>
-                          {isl.requiresBoat && (
-                            <span className="text-[#876B3A] dark:text-[#F6C453] inline-flex items-center gap-0.5">
-                              · <Ship className="w-3 h-3" /> Kapal
-                            </span>
-                          )}
-                        </span>
-                        <span className="tabular-nums text-[#425B66] dark:text-[#98ACB5]">
-                          {islandFound}/{islandTotal} Ikan
+                <div className="space-y-1 min-w-0">
+                  {activePopup.kind === 'npc' && (
+                    <>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-display text-base sm:text-lg font-bold">
+                          {activePopup.npc.name}
+                        </h3>
+                        <span
+                          className="text-[11px] font-semibold px-2 py-0.5 rounded bg-[#0B1E27]/8 dark:bg-[#EDEBE3]/10"
+                          style={{ color: activePopup.npc.accentHex }}
+                        >
+                          {activePopup.npc.subtitle}
                         </span>
                       </div>
-                      <h4 className="font-display text-base font-bold">{isl.name}</h4>
-                      <p className="text-[11px] text-[#425B66] dark:text-[#98ACB5] leading-relaxed">
-                        {isl.description}
+                      <p className="text-xs italic text-[#425B66] dark:text-[#98ACB5]">
+                        “{activePopup.npc.dialogue}”
                       </p>
-                      {isl.dangerNote && (
-                        <p className="text-[11px] text-[#B84F3C] dark:text-[#D98270] font-medium">
-                          {isl.dangerNote}
-                        </p>
-                      )}
-                      {isl.requiresBoat && isl.outpostCoords && !isHere && (
-                        <p className="text-[11px] text-[#1E3A5F] dark:text-[#63B3ED] font-medium">
-                          Atau layari langsung dengan Kapal (tekan [B] di dermaga menuju koordinat {isl.outpostCoords.x}, {isl.outpostCoords.z}).
-                        </p>
-                      )}
-                    </div>
-
-                    <button
-                      disabled={!unlocked || isHere}
-                      onClick={() => {
-                        soundEffects.playBubblePop();
-                        setSave((p) => ({ ...p, currentIslandId: isl.id }));
-                        showTempBanner(`Berlayar menuju ${isl.name}!`);
-                      }}
-                      className={`w-full py-2 rounded-lg text-xs font-semibold transition-colors ${
-                        isHere
-                          ? 'bg-[#267472]/15 text-[#1D6664] dark:text-[#82AAA1] cursor-default'
-                          : unlocked
-                          ? 'bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1] cursor-pointer'
-                          : 'bg-[#0B1E27]/10 dark:bg-[#EDEBE3]/10 text-[#5F7782] cursor-not-allowed'
-                      }`}
-                    >
-                      {isHere
-                        ? 'Lokasi Aktif'
-                        : unlocked
-                        ? isl.requiresBoat
-                          ? 'Berlayar ke Pulau'
-                          : 'Berlayar ke Pulau'
-                        : `Terbuka di Lv. ${isl.minLevel}`}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* TAB 2: INVENTORY, CRATES, BAITS & ROD EQUIP */}
-        {activeTab === 'inventory' && (
-          <div className="space-y-6">
-            {/* Crates & Relics Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="rounded-xl bg-[#ECEAE1]/60 dark:bg-[#061116]/65 border border-[#0B1E27]/10 dark:border-[#82AAA1]/15 p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-display text-base font-semibold flex items-center gap-2">
-                    <PackageOpen className="w-4 h-4 text-[#1D6664] dark:text-[#82AAA1]" />
-                    <span>Peti Umpan &amp; Geode ({Object.values(save.crateCounts).reduce((a, b) => a + b, 0)})</span>
-                  </h4>
-                  <span className="text-xs font-semibold text-[#7B3FE4] dark:text-[#B794F4]">
-                    Enchant Relic: {save.relicCount}×
-                  </span>
-                </div>
-                {Object.keys(save.crateCounts).length === 0 ? (
-                  <p className="text-xs text-[#425B66] dark:text-[#98ACB5]">
-                    Belum ada peti. Gunakan umpan Magnet atau beli peti di Merchant!
-                  </p>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {Object.entries(save.crateCounts).map(([cId, count]) => {
-                      const sp = FISCH_SPECIES.find((s) => s.id === cId);
-                      return (
-                        <button
-                          key={cId}
-                          onClick={() => handleOpenCrate(cId)}
-                          className="px-3 py-2 rounded-lg bg-white dark:bg-[#0E2632] border border-[#0B1E27]/12 dark:border-[#82AAA1]/25 text-xs font-semibold hover:border-[#267472] cursor-pointer"
-                        >
-                          Buka {sp?.name ?? cId} ({count}×)
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Equip Bait */}
-              <div className="rounded-xl bg-[#ECEAE1]/60 dark:bg-[#061116]/65 border border-[#0B1E27]/10 dark:border-[#82AAA1]/15 p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-display text-base font-semibold">Pilih Umpan (Bait Bag)</h4>
-                  {save.equippedBaitId && (
-                    <button
-                      onClick={() => setSave((p) => ({ ...p, equippedBaitId: null }))}
-                      className="text-xs text-[#B84F3C] dark:text-[#D98270] font-semibold cursor-pointer"
-                    >
-                      Lepas Umpan
-                    </button>
+                    </>
+                  )}
+                  {activePopup.kind === 'bag' && (
+                    <>
+                      <h3 className="font-display text-base sm:text-lg font-bold flex items-center gap-2">
+                        <Backpack className="w-4 h-4 text-[#1D6664] dark:text-[#82AAA1]" />
+                        <span>Tas Ekspedisi &amp; Perlengkapan</span>
+                      </h3>
+                      <p className="text-xs text-[#425B66] dark:text-[#98ACB5]">
+                        Kelola hasil pancing, buka Peti Umpan/Geode, pasang umpan, atau ganti Joran Anda.
+                      </p>
+                    </>
+                  )}
+                  {activePopup.kind === 'bestiary' && (
+                    <>
+                      <h3 className="font-display text-base sm:text-lg font-bold flex items-center gap-2">
+                        <BookOpen className="w-4 h-4 text-[#1D6664] dark:text-[#82AAA1]" />
+                        <span>
+                          Bestiary Samudra — {discoveredCount}/{FISCH_SPECIES.length} Spesies ({bestiaryPercent}%)
+                        </span>
+                      </h3>
+                      <p className="text-xs text-[#425B66] dark:text-[#98ACB5]">
+                        Catatan seluruh ikan dari {FISCH_ISLANDS.length} pulau, geode, dan Enchant Relic.
+                      </p>
+                    </>
+                  )}
+                  {activePopup.kind === 'map' && (
+                    <>
+                      <h3 className="font-display text-base sm:text-lg font-bold flex items-center gap-2">
+                        <Compass className="w-4 h-4 text-[#1D6664] dark:text-[#82AAA1]" />
+                        <span>Peta Laut &amp; Navigasi Kepulauan</span>
+                      </h3>
+                      <p className="text-xs text-[#425B66] dark:text-[#98ACB5]">
+                        Semua 11 pulau terbuka! Pasang target kompas di peta, lalu naik kapal di dermaga <strong>[B]</strong> untuk berlayar.
+                      </p>
+                    </>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {FISCH_BAITS.filter((b) => (save.baitCounts[b.id] ?? 0) > 0).length === 0 ? (
-                    <p className="text-xs text-[#425B66] dark:text-[#98ACB5]">
-                      Stok umpan kosong. Buka Bait Crate atau beli di Toko Merchant.
-                    </p>
-                  ) : (
-                    FISCH_BAITS.filter((b) => (save.baitCounts[b.id] ?? 0) > 0).map((b) => {
-                      const active = save.equippedBaitId === b.id;
-                      return (
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#F7F6F1] dark:bg-[#0E2632] text-xs font-bold text-[#876B3A] dark:text-[#F6C453] tabular-nums">
+                    <Coins className="w-3.5 h-3.5" />
+                    {formatCredits(save.credits)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setActivePopup(null)}
+                    className="p-1.5 rounded-lg bg-[#0B1E27]/8 hover:bg-[#0B1E27]/15 dark:bg-[#EDEBE3]/10 dark:hover:bg-[#EDEBE3]/20 cursor-pointer"
+                    title="Tutup (Esc)"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-4 sm:p-5 overflow-y-auto space-y-5 flex-1">
+                {/* 1. NPC: MERCHANT */}
+                {activePopup.kind === 'npc' && activePopup.npc.targetTab === 'merchant' && (
+                  <div className="space-y-6">
+                    <div className="rounded-xl bg-[#ECEAE1]/75 dark:bg-[#061116]/75 border border-[#0B1E27]/12 dark:border-[#82AAA1]/20 p-4 flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <ShoppingBag className="w-5 h-5 text-[#876B3A] dark:text-[#F6C453]" />
+                        <div>
+                          <div className="font-display text-sm font-bold">
+                            Konter Penjualan &amp; Peti — {currentIsland.name}
+                          </div>
+                          <div className="text-[11px] text-[#425B66] dark:text-[#98ACB5]">
+                            Ikan bertanda Favorit tetap aman dan tidak ikut terjual.
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
                         <button
-                          key={b.id}
-                          onClick={() => {
-                            soundEffects.playBubblePop();
-                            setSave((p) => ({ ...p, equippedBaitId: b.id }));
-                          }}
-                          title={b.description}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer ${
-                            active
-                              ? 'bg-[#267472] text-[#F7F6F1] border-[#267472]'
-                              : 'bg-white dark:bg-[#0E2632] border-[#0B1E27]/12 dark:border-[#82AAA1]/20'
+                          disabled={unlockedInventoryValue <= 0}
+                          onClick={handleSellAllUnlocked}
+                          className={`px-3.5 py-2 rounded-lg text-xs font-semibold ${
+                            unlockedInventoryValue > 0
+                              ? 'bg-[#876B3A] hover:bg-[#6E562D] dark:bg-[#C7B99E] dark:hover:bg-[#EDEBE3] text-[#F7F6F1] dark:text-[#061116] cursor-pointer'
+                              : 'bg-[#0B1E27]/10 dark:bg-[#EDEBE3]/10 text-[#5F7782] cursor-not-allowed'
                           }`}
                         >
-                          {b.name} ({save.baitCounts[b.id]}×)
+                          Jual Semua ({formatCredits(unlockedInventoryValue)})
                         </button>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            </div>
+                        <button
+                          onClick={() => handleBuyCrate('crate__bait_crate', 120)}
+                          className="px-3 py-2 rounded-lg bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1] text-xs font-semibold cursor-pointer"
+                        >
+                          Bait Crate (120 C$)
+                        </button>
+                        <button
+                          onClick={() => handleBuyCrate('crate__quality_bait_crate', 550)}
+                          className="px-3 py-2 rounded-lg bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1] text-xs font-semibold cursor-pointer"
+                        >
+                          Quality Crate (550 C$)
+                        </button>
+                      </div>
+                    </div>
 
-            {/* Owned Rods Quick Switch */}
-            <div className="space-y-2">
-              <h4 className="font-display text-base font-semibold">
-                Koleksi Joran Dimiliki ({save.ownedRods.length}/{FISCH_RODS.length})
-              </h4>
-              <div className="flex flex-wrap gap-2">
-                {save.ownedRods.map((rId) => {
-                  const rod = findRod(rId);
-                  const enchant = findEnchant(save.rodEnchants[rId]);
-                  const active = save.equippedRodId === rId;
-                  return (
-                    <button
-                      key={rId}
-                      onClick={() => {
-                        soundEffects.playBubblePop();
-                        setSave((p) => ({ ...p, equippedRodId: rId }));
-                        setEnchantTargetRodId(rId);
-                      }}
-                      className={`px-3 py-2 rounded-lg text-xs font-semibold border flex items-center gap-2 cursor-pointer ${
-                        active
-                          ? 'bg-[#267472] text-[#F7F6F1] border-[#267472]'
-                          : 'bg-white dark:bg-[#0E2632] border-[#0B1E27]/12 dark:border-[#82AAA1]/20'
-                      }`}
-                    >
-                      <span
-                        className="w-2.5 h-2.5 rounded-full"
-                        style={{ backgroundColor: rod.colorHex }}
-                      />
-                      <span>{rod.name}</span>
-                      {enchant && <span className="opacity-85">[{enchant.name}]</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+                    {/* Rods Shop */}
+                    <div className="space-y-2.5">
+                      <h4 className="font-display text-sm font-bold">
+                        Toko Joran ({FISCH_RODS.length} Rod Autentik)
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {FISCH_RODS.map((rod) => {
+                          const owned = save.ownedRods.includes(rod.id);
+                          const equipped = save.equippedRodId === rod.id;
+                          const levelOk = save.level >= rod.minLevel;
 
-            {/* Caught Fish Inventory */}
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h4 className="font-display text-base font-semibold">
-                  Tas Ikan ({save.inventory.length}/120)
-                </h4>
-                {unlockedInventoryValue > 0 && (
-                  <button
-                    onClick={handleSellAllUnlocked}
-                    className="px-4 py-2 rounded-lg bg-[#876B3A] hover:bg-[#6E562D] dark:bg-[#C7B99E] dark:hover:bg-[#EDEBE3] text-[#F7F6F1] dark:text-[#061116] text-xs font-semibold cursor-pointer"
-                  >
-                    Jual Semua Non-Favorit (+{formatCredits(unlockedInventoryValue)})
-                  </button>
-                )}
-              </div>
-
-              {save.inventory.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-[#0B1E27]/20 dark:border-[#82AAA1]/25 p-6 text-center text-xs text-[#425B66] dark:text-[#98ACB5]">
-                  Tas ikan masih kosong. Lemparkan kail ke air untuk menangkap ikan!
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[340px] overflow-y-auto pr-1">
-                  {save.inventory.map((item) => {
-                    const sp = FISCH_SPECIES.find((s) => s.id === item.speciesId);
-                    if (!sp) return null;
-                    const mut = FISCH_MUTATIONS.find((m) => m.id === item.mutationId);
-                    return (
-                      <div
-                        key={item.uid}
-                        className="rounded-xl bg-white dark:bg-[#061116]/75 border border-[#0B1E27]/12 dark:border-[#82AAA1]/18 p-3 flex flex-col justify-between gap-2"
-                      >
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between gap-2 text-[11px]">
-                            <span
-                              className="font-bold"
-                              style={{
-                                color:
-                                  theme === 'dark'
-                                    ? RARITY_COLORS[sp.rarity].dark
-                                    : RARITY_COLORS[sp.rarity].light,
-                              }}
+                          return (
+                            <div
+                              key={rod.id}
+                              className={`rounded-xl p-3 border flex flex-col justify-between gap-2.5 ${
+                                equipped
+                                  ? 'bg-white dark:bg-[#0E2632] border-[#267472] dark:border-[#82AAA1]'
+                                  : 'bg-[#ECEAE1]/55 dark:bg-[#061116]/60 border-[#0B1E27]/10 dark:border-[#82AAA1]/15'
+                              }`}
                             >
-                              {sp.rarity}
-                            </span>
-                            <span className="tabular-nums font-semibold">{item.weightKg} kg</span>
-                          </div>
-                          <div className="font-display text-sm font-bold truncate">
-                            {item.isGiant ? 'Giant ' : item.isTiny ? 'Tiny ' : ''}
-                            {mut && mut.id !== 'none' ? `${mut.name} ` : ''}
-                            {sp.name}
-                          </div>
-                          <div className="text-[11px] text-[#425B66] dark:text-[#98ACB5] tabular-nums">
-                            {[
-                              item.isShiny ? 'Shiny' : null,
-                              item.isSparkling ? 'Sparkling' : null,
-                              formatCredits(item.sellValue),
-                            ]
-                              .filter(Boolean)
-                              .join(' · ')}
-                          </div>
-                        </div>
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span
+                                      className="w-3 h-3 rounded-full shrink-0"
+                                      style={{ backgroundColor: rod.colorHex }}
+                                    />
+                                    <span className="font-display font-bold text-xs sm:text-sm truncate">
+                                      {rod.name}
+                                    </span>
+                                  </div>
+                                  <span className="text-[11px] font-semibold text-[#876B3A] dark:text-[#F6C453] tabular-nums shrink-0">
+                                    {owned ? 'Dimiliki' : formatCredits(rod.price)}
+                                  </span>
+                                </div>
+                                <div className="text-[11px] text-[#425B66] dark:text-[#98ACB5] tabular-nums">
+                                  Lure {rod.lureSpeed >= 0 ? `+${rod.lureSpeed}` : rod.lureSpeed}% · Luck{' '}
+                                  {rod.luck >= 0 ? `+${rod.luck}` : rod.luck}% · Max{' '}
+                                  {rod.maxKg >= 999999 ? '∞' : `${rod.maxKg.toLocaleString()}kg`}
+                                </div>
+                                <p className="text-[11px] text-[#425B66] dark:text-[#98ACB5] leading-snug">
+                                  {rod.passiveText}
+                                </p>
+                              </div>
+                              <button
+                                disabled={equipped || (!owned && (!levelOk || save.credits < rod.price))}
+                                onClick={() => handleBuyRod(rod.id)}
+                                className={`w-full py-1.5 rounded-lg text-xs font-semibold ${
+                                  equipped
+                                    ? 'bg-[#267472]/15 text-[#1D6664] dark:text-[#82AAA1] cursor-default'
+                                    : owned
+                                    ? 'bg-[#ECEAE1] hover:bg-[#DFDDD2] dark:bg-[#102B38] text-[#0B1E27] dark:text-[#EDEBE3] cursor-pointer'
+                                    : levelOk && save.credits >= rod.price
+                                    ? 'bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1] cursor-pointer'
+                                    : 'bg-[#0B1E27]/10 dark:bg-[#EDEBE3]/10 text-[#5F7782] cursor-not-allowed'
+                                }`}
+                              >
+                                {equipped
+                                  ? 'Sedang Dipakai'
+                                  : owned
+                                  ? 'Pasang Rod'
+                                  : !levelOk
+                                  ? `Butuh Lv. ${rod.minLevel}`
+                                  : `Beli (${formatCredits(rod.price)})`}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
 
-                        <div className="flex items-center gap-2 pt-1">
-                          <button
-                            onClick={() => handleToggleLock(item.uid)}
-                            className="px-2.5 py-1.5 rounded-lg bg-[#ECEAE1] dark:bg-[#0E2632] text-[11px] flex items-center gap-1 cursor-pointer"
-                            title={item.locked ? 'Buka kunci agar bisa dijual' : 'Kunci sebagai Favorit'}
+                    {/* Bait Shop */}
+                    <div className="space-y-2.5">
+                      <h4 className="font-display text-sm font-bold">Toko Umpan</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                        {FISCH_BAITS.map((bait) => (
+                          <div
+                            key={bait.id}
+                            className="rounded-xl p-3 bg-[#ECEAE1]/55 dark:bg-[#061116]/60 border border-[#0B1E27]/10 dark:border-[#82AAA1]/15 flex flex-col justify-between gap-2"
                           >
-                            {item.locked ? (
-                              <>
-                                <Lock className="w-3 h-3 text-[#876B3A] dark:text-[#F6C453]" />
-                                <span>Favorit</span>
-                              </>
-                            ) : (
-                              <>
-                                <Unlock className="w-3 h-3" />
-                                <span>Kunci</span>
-                              </>
-                            )}
-                          </button>
-                          <button
-                            disabled={item.locked}
-                            onClick={() => handleSellFish(item.uid)}
-                            className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold ${
-                              item.locked
-                                ? 'bg-[#0B1E27]/8 dark:bg-[#EDEBE3]/8 text-[#5F7782] cursor-not-allowed'
-                                : 'bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1] cursor-pointer'
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between text-xs font-bold">
+                                <span>{bait.name}</span>
+                                <span className="text-[#876B3A] dark:text-[#F6C453] tabular-nums">
+                                  {formatCredits(bait.shopPrice ?? 50)}
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-[#1D6664] dark:text-[#82AAA1] tabular-nums">
+                                Pref +{bait.preferredLuck}% · Univ +{bait.universalLuck}% · Lure {bait.lureSpeed}%
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => handleBuyBait(bait.id, 1)}
+                                className="flex-1 py-1.5 rounded-lg bg-white dark:bg-[#0E2632] border border-[#0B1E27]/12 dark:border-[#82AAA1]/20 text-[11px] font-semibold cursor-pointer"
+                              >
+                                +1
+                              </button>
+                              <button
+                                onClick={() => handleBuyBait(bait.id, 5)}
+                                className="flex-1 py-1.5 rounded-lg bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1] text-[11px] font-semibold cursor-pointer"
+                              >
+                                +5 ({formatCredits((bait.shopPrice ?? 50) * 5)})
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. NPC: APPRAISER */}
+                {activePopup.kind === 'npc' && activePopup.npc.targetTab === 'appraiser' && (
+                  <div className="space-y-4">
+                    <div className="rounded-xl bg-[#ECEAE1]/65 dark:bg-[#061116]/70 border border-[#0B1E27]/12 dark:border-[#82AAA1]/20 p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Wand2 className="w-4 h-4 text-[#1D6664] dark:text-[#82AAA1]" />
+                        <h4 className="font-display text-sm font-bold">
+                          Meja Uji &amp; Mutasi — {activePopup.npc.name}
+                        </h4>
+                      </div>
+                      <p className="text-xs text-[#425B66] dark:text-[#98ACB5]">
+                        Gulirkan ulang berat (peluang Giant 1.75×+), atribut Shiny/Sparkling, dan Mutasi baru pada ikan di tas Anda.
+                      </p>
+
+                      {save.inventory.length === 0 ? (
+                        <p className="text-xs text-[#5F7782] py-3">
+                          Tas ikan Anda kosong. Tangkap minimal 1 ikan terlebih dahulu.
+                        </p>
+                      ) : (
+                        (() => {
+                          const targetUid = appraiseSelectedUid || save.inventory[0]?.uid;
+                          const targetItem =
+                            save.inventory.find((i) => i.uid === targetUid) ?? save.inventory[0];
+                          const sp = targetItem
+                            ? FISCH_SPECIES.find((s) => s.id === targetItem.speciesId)
+                            : null;
+                          const mut = targetItem
+                            ? FISCH_MUTATIONS.find((m) => m.id === targetItem.mutationId)
+                            : null;
+                          const fee = sp
+                            ? Math.max(150, Math.round(sp.baseValuePerKg * sp.maxKg * 0.25))
+                            : 150;
+
+                          return (
+                            <div className="space-y-3">
+                              <select
+                                value={targetItem?.uid || ''}
+                                onChange={(e) => setAppraiseSelectedUid(e.target.value)}
+                                className="w-full px-3 py-2.5 rounded-lg bg-white dark:bg-[#0E2632] border border-[#0B1E27]/15 dark:border-[#82AAA1]/25 text-xs"
+                              >
+                                {save.inventory.map((item) => {
+                                  const isp = FISCH_SPECIES.find((s) => s.id === item.speciesId);
+                                  return (
+                                    <option key={item.uid} value={item.uid}>
+                                      {item.isGiant ? 'Giant ' : item.isTiny ? 'Tiny ' : ''}
+                                      {isp?.name ?? item.speciesId} · {item.weightKg} kg (
+                                      {formatCredits(item.sellValue)})
+                                    </option>
+                                  );
+                                })}
+                              </select>
+
+                              {targetItem && sp && (
+                                <div className="rounded-xl bg-white dark:bg-[#0E2632] border border-[#0B1E27]/12 dark:border-[#82AAA1]/25 p-3.5 flex flex-wrap items-center justify-between gap-3">
+                                  <div>
+                                    <div className="font-display text-sm font-bold">
+                                      {targetItem.isGiant
+                                        ? 'Giant '
+                                        : targetItem.isTiny
+                                        ? 'Tiny '
+                                        : ''}
+                                      {mut && mut.id !== 'none' ? `${mut.name} ` : ''}
+                                      {sp.name}
+                                    </div>
+                                    <div className="text-xs text-[#425B66] dark:text-[#98ACB5] tabular-nums">
+                                      Berat: <strong>{targetItem.weightKg} kg</strong> · Nilai:{' '}
+                                      <strong className="text-[#876B3A] dark:text-[#F6C453]">
+                                        {formatCredits(targetItem.sellValue)}
+                                      </strong>
+                                      {targetItem.isShiny ? ' · Shiny' : ''}
+                                      {targetItem.isSparkling ? ' · Sparkling' : ''}
+                                    </div>
+                                  </div>
+                                  <button
+                                    disabled={save.credits < fee}
+                                    onClick={() => handleAppraiseFish(targetItem.uid)}
+                                    className={`px-4 py-2 rounded-lg text-xs font-semibold ${
+                                      save.credits >= fee
+                                        ? 'bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1] cursor-pointer'
+                                        : 'bg-[#0B1E27]/10 dark:bg-[#EDEBE3]/10 text-[#5F7782] cursor-not-allowed'
+                                    }`}
+                                  >
+                                    Appraise Ikan ({formatCredits(fee)})
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. NPC: SHIPWRIGHT (TUKANG KAPAL) */}
+                {activePopup.kind === 'npc' && activePopup.npc.targetTab === 'shipwright' && (
+                  <div className="space-y-4">
+                    <div className="rounded-xl bg-[#ECEAE1]/70 dark:bg-[#061116]/70 border border-[#0B1E27]/12 dark:border-[#82AAA1]/20 p-3.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <span className="flex items-center gap-2 font-semibold">
+                        <Ship className="w-4 h-4 text-[#1D6664] dark:text-[#82AAA1]" />
+                        <span>Galangan Kapal · Kapal Tertambat: {equippedBoat.name}</span>
+                      </span>
+                      <span className="text-[#425B66] dark:text-[#98ACB5]">
+                        Dekati perahu di sisi kiri ujung dermaga dan tekan <strong>[B]</strong> untuk berlayar!
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      {FISCH_BOATS.map((boat) => {
+                        const owned = save.ownedBoats.includes(boat.id);
+                        const equipped = save.equippedBoatId === boat.id;
+                        const levelOk = save.level >= boat.minLevel;
+
+                        return (
+                          <div
+                            key={boat.id}
+                            className={`rounded-xl p-3.5 border flex flex-col justify-between gap-3 ${
+                              equipped
+                                ? 'bg-white dark:bg-[#0E2632] border-[#267472] dark:border-[#82AAA1]'
+                                : 'bg-[#ECEAE1]/55 dark:bg-[#061116]/60 border-[#0B1E27]/10 dark:border-[#82AAA1]/15'
                             }`}
                           >
-                            {item.locked ? 'Terkunci' : 'Jual'}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className="w-3 h-3 rounded-full shrink-0"
+                                    style={{ backgroundColor: boat.colorHex }}
+                                  />
+                                  <span className="font-display font-bold text-sm">{boat.name}</span>
+                                </div>
+                                <span className="text-[11px] font-semibold text-[#876B3A] dark:text-[#F6C453] tabular-nums">
+                                  {owned ? 'Dimiliki' : formatCredits(boat.price)}
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-[#1D6664] dark:text-[#82AAA1] font-medium tabular-nums">
+                                Kecepatan {boat.speed} kn · Kemudi {boat.turnSpeed}× · Min Lv. {boat.minLevel}
+                              </div>
+                              <p className="text-[11px] text-[#425B66] dark:text-[#98ACB5] leading-snug">
+                                {boat.description}
+                              </p>
+                            </div>
 
-        {/* TAB 3: MERCHANT & ROD/BAIT SHOP */}
-        {activeTab === 'shop' && (
-          <div className="space-y-6">
-            {/* Merchant Quick Counter */}
-            <div className="rounded-xl bg-[#ECEAE1]/75 dark:bg-[#061116]/75 border border-[#0B1E27]/12 dark:border-[#82AAA1]/20 p-4 flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <h4 className="font-display text-base font-bold">The Merchant — Dermaga Moosewood</h4>
-                <p className="text-xs text-[#425B66] dark:text-[#98ACB5]">
-                  Jual hasil pancingan Anda untuk C$ atau beli Peti Umpan. Ikan berstatus Favorit tetap aman.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  disabled={unlockedInventoryValue <= 0}
-                  onClick={handleSellAllUnlocked}
-                  className={`px-4 py-2 rounded-lg text-xs font-semibold ${
-                    unlockedInventoryValue > 0
-                      ? 'bg-[#876B3A] hover:bg-[#6E562D] dark:bg-[#C7B99E] dark:hover:bg-[#EDEBE3] text-[#F7F6F1] dark:text-[#061116] cursor-pointer'
-                      : 'bg-[#0B1E27]/10 dark:bg-[#EDEBE3]/10 text-[#5F7782] cursor-not-allowed'
-                  }`}
-                >
-                  Jual Semua ({formatCredits(unlockedInventoryValue)})
-                </button>
-                <button
-                  onClick={() => handleBuyCrate('crate__bait_crate', 120)}
-                  className="px-3.5 py-2 rounded-lg bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1] text-xs font-semibold cursor-pointer"
-                >
-                  Bait Crate (120 C$)
-                </button>
-                <button
-                  onClick={() => handleBuyCrate('crate__quality_bait_crate', 550)}
-                  className="px-3.5 py-2 rounded-lg bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1] text-xs font-semibold cursor-pointer"
-                >
-                  Quality Crate (550 C$)
-                </button>
-              </div>
-            </div>
-
-            {/* Galangan Kapal — Tukang Kapal */}
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h4 className="font-display text-base font-bold flex items-center gap-2">
-                  <Ship className="w-4 h-4 text-[#1D6664] dark:text-[#82AAA1]" />
-                  <span>Galangan Kapal · Tukang Kapal ({FISCH_BOATS.length} Kapal 3D)</span>
-                </h4>
-                <span className="text-[11px] text-[#425B66] dark:text-[#98ACB5]">
-                  Dekati kapal di sisi kiri ujung dermaga dan tekan [B] untuk berlayar ke pulau atol!
-                </span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
-                {FISCH_BOATS.map((boat) => {
-                  const owned = save.ownedBoats.includes(boat.id);
-                  const equipped = save.equippedBoatId === boat.id;
-                  const levelOk = save.level >= boat.minLevel;
-
-                  return (
-                    <div
-                      key={boat.id}
-                      className={`rounded-xl p-3.5 border flex flex-col justify-between gap-3 ${
-                        equipped
-                          ? 'bg-white dark:bg-[#0E2632] border-[#267472] dark:border-[#82AAA1]'
-                          : 'bg-[#ECEAE1]/50 dark:bg-[#061116]/60 border-[#0B1E27]/10 dark:border-[#82AAA1]/15'
-                      }`}
-                    >
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className="w-3 h-3 rounded-full shrink-0"
-                              style={{ backgroundColor: boat.colorHex }}
-                            />
-                            <span className="font-display font-bold text-sm">{boat.name}</span>
+                            <button
+                              disabled={equipped || (!owned && (!levelOk || save.credits < boat.price))}
+                              onClick={() => handleBuyOrEquipBoat(boat.id)}
+                              className={`w-full py-2 rounded-lg text-xs font-semibold ${
+                                equipped
+                                  ? 'bg-[#267472]/15 text-[#1D6664] dark:text-[#82AAA1] cursor-default'
+                                  : owned
+                                  ? 'bg-[#ECEAE1] hover:bg-[#DFDDD2] dark:bg-[#102B38] text-[#0B1E27] dark:text-[#EDEBE3] cursor-pointer'
+                                  : levelOk && save.credits >= boat.price
+                                  ? 'bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1] cursor-pointer'
+                                  : 'bg-[#0B1E27]/10 dark:bg-[#EDEBE3]/10 text-[#5F7782] cursor-not-allowed'
+                              }`}
+                            >
+                              {equipped
+                                ? 'Kapal Ditambatkan'
+                                : owned
+                                ? 'Luncurkan Kapal'
+                                : !levelOk
+                                ? `Butuh Lv. ${boat.minLevel}`
+                                : `Beli (${formatCredits(boat.price)})`}
+                            </button>
                           </div>
-                          <span className="text-[11px] font-semibold text-[#876B3A] dark:text-[#F6C453] tabular-nums">
-                            {owned ? 'Dimiliki' : formatCredits(boat.price)}
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-[#1D6664] dark:text-[#82AAA1] font-medium tabular-nums">
-                          Kecepatan {boat.speed} kn · Kemudi {boat.turnSpeed}× · Min Lv. {boat.minLevel}
-                        </div>
-                        <p className="text-[11px] text-[#425B66] dark:text-[#98ACB5] leading-snug">
-                          {boat.description}
-                        </p>
-                      </div>
-
-                      <button
-                        disabled={equipped || (!owned && (!levelOk || save.credits < boat.price))}
-                        onClick={() => handleBuyOrEquipBoat(boat.id)}
-                        className={`w-full py-2 rounded-lg text-xs font-semibold ${
-                          equipped
-                            ? 'bg-[#267472]/15 text-[#1D6664] dark:text-[#82AAA1] cursor-default'
-                            : owned
-                            ? 'bg-[#ECEAE1] hover:bg-[#DFDDD2] dark:bg-[#102B38] text-[#0B1E27] dark:text-[#EDEBE3] cursor-pointer'
-                            : levelOk && save.credits >= boat.price
-                            ? 'bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1] cursor-pointer'
-                            : 'bg-[#0B1E27]/10 dark:bg-[#EDEBE3]/10 text-[#5F7782] cursor-not-allowed'
-                        }`}
-                      >
-                        {equipped
-                          ? 'Kapal Ditambatkan'
-                          : owned
-                          ? 'Luncurkan Kapal'
-                          : !levelOk
-                          ? `Butuh Lv. ${boat.minLevel}`
-                          : `Beli (${formatCredits(boat.price)})`}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* 18 Fishing Rods Shop */}
-            <div className="space-y-3">
-              <h4 className="font-display text-base font-bold">Toko Joran ({FISCH_RODS.length} Rod Autentik)</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 max-h-[380px] overflow-y-auto pr-1">
-                {FISCH_RODS.map((rod) => {
-                  const owned = save.ownedRods.includes(rod.id);
-                  const equipped = save.equippedRodId === rod.id;
-                  const levelOk = save.level >= rod.minLevel;
-
-                  return (
-                    <div
-                      key={rod.id}
-                      className={`rounded-xl p-3.5 border flex flex-col justify-between gap-3 ${
-                        equipped
-                          ? 'bg-white dark:bg-[#0E2632] border-[#267472] dark:border-[#82AAA1]'
-                          : 'bg-[#ECEAE1]/50 dark:bg-[#061116]/60 border-[#0B1E27]/10 dark:border-[#82AAA1]/15'
-                      }`}
-                    >
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className="w-3 h-3 rounded-full shrink-0"
-                              style={{ backgroundColor: rod.colorHex }}
-                            />
-                            <span className="font-display font-bold text-sm">{rod.name}</span>
-                          </div>
-                          <span className="text-[11px] font-semibold text-[#876B3A] dark:text-[#F6C453] tabular-nums">
-                            {owned ? 'Dimiliki' : formatCredits(rod.price)}
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-[#425B66] dark:text-[#98ACB5] tabular-nums">
-                          Lure {rod.lureSpeed >= 0 ? `+${rod.lureSpeed}` : rod.lureSpeed}% ·
-                          Luck {rod.luck >= 0 ? `+${rod.luck}` : rod.luck}% ·
-                          Ctrl {rod.control >= 0 ? `+${rod.control}` : rod.control} ·
-                          Res {rod.resilience}% ·
-                          Max {rod.maxKg >= 999999 ? '∞' : `${rod.maxKg.toLocaleString()}kg`}
-                        </div>
-                        <p className="text-[11px] text-[#425B66] dark:text-[#98ACB5] leading-snug">
-                          {rod.passiveText}
-                        </p>
-                      </div>
-
-                      <button
-                        disabled={equipped || (!owned && (!levelOk || save.credits < rod.price))}
-                        onClick={() => handleBuyRod(rod.id)}
-                        className={`w-full py-2 rounded-lg text-xs font-semibold ${
-                          equipped
-                            ? 'bg-[#267472]/15 text-[#1D6664] dark:text-[#82AAA1] cursor-default'
-                            : owned
-                            ? 'bg-[#ECEAE1] hover:bg-[#DFDDD2] dark:bg-[#102B38] text-[#0B1E27] dark:text-[#EDEBE3] cursor-pointer'
-                            : levelOk && save.credits >= rod.price
-                            ? 'bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1] cursor-pointer'
-                            : 'bg-[#0B1E27]/10 dark:bg-[#EDEBE3]/10 text-[#5F7782] cursor-not-allowed'
-                        }`}
-                      >
-                        {equipped
-                          ? 'Sedang Dipakai'
-                          : owned
-                          ? 'Pasang Rod'
-                          : !levelOk
-                          ? `Butuh Lv. ${rod.minLevel}`
-                          : `Beli (${formatCredits(rod.price)})`}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Direct Bait Shop */}
-            <div className="space-y-3">
-              <h4 className="font-display text-base font-bold">Toko Umpan (Beli Satuan &amp; Grosir)</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                {FISCH_BAITS.map((bait) => (
-                  <div
-                    key={bait.id}
-                    className="rounded-xl p-3 bg-[#ECEAE1]/50 dark:bg-[#061116]/60 border border-[#0B1E27]/10 dark:border-[#82AAA1]/15 flex flex-col justify-between gap-2"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-xs font-bold">
-                        <span>{bait.name}</span>
-                        <span className="text-[#876B3A] dark:text-[#F6C453] tabular-nums">
-                          {formatCredits(bait.shopPrice ?? 50)}
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-[#1D6664] dark:text-[#82AAA1] tabular-nums">
-                        Pref +{bait.preferredLuck}% · Univ +{bait.universalLuck}% · Lure {bait.lureSpeed}%
-                      </div>
-                      <p className="text-[11px] text-[#425B66] dark:text-[#98ACB5]">{bait.description}</p>
-                    </div>
-                    <div className="flex items-center gap-1.5 pt-1">
-                      <button
-                        onClick={() => handleBuyBait(bait.id, 1)}
-                        className="flex-1 py-1.5 rounded-lg bg-white dark:bg-[#0E2632] border border-[#0B1E27]/12 dark:border-[#82AAA1]/20 text-[11px] font-semibold cursor-pointer"
-                      >
-                        +1
-                      </button>
-                      <button
-                        onClick={() => handleBuyBait(bait.id, 5)}
-                        className="flex-1 py-1.5 rounded-lg bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1] text-[11px] font-semibold cursor-pointer"
-                      >
-                        +5 ({formatCredits((bait.shopPrice ?? 50) * 5)})
-                      </button>
+                        );
+                      })}
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
+                )}
 
-        {/* TAB 4: APPRAISER, MERLIN & KEEPER'S ALTAR (ENCHANTING) */}
-        {activeTab === 'altar' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Treasure Appraiser */}
-            <div className="rounded-xl bg-[#ECEAE1]/60 dark:bg-[#061116]/65 border border-[#0B1E27]/12 dark:border-[#82AAA1]/18 p-4 space-y-3">
-              <h4 className="font-display text-base font-bold">Treasure Appraiser</h4>
-              <p className="text-xs text-[#425B66] dark:text-[#98ACB5]">
-                Gulirkan ulang berat (peluang Giant!), atribut Shiny/Sparkling, serta Mutasi baru pada ikan di tas Anda.
-              </p>
-
-              {save.inventory.length === 0 ? (
-                <p className="text-xs text-[#5F7782]">Tangkap minimal 1 ikan terlebih dahulu.</p>
-              ) : (
-                <>
-                  <select
-                    value={appraiseSelectedUid || save.inventory[0]?.uid || ''}
-                    onChange={(e) => setAppraiseSelectedUid(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-white dark:bg-[#0E2632] border border-[#0B1E27]/15 dark:border-[#82AAA1]/25 text-xs"
-                  >
-                    {save.inventory.map((item) => {
-                      const sp = FISCH_SPECIES.find((s) => s.id === item.speciesId);
-                      return (
-                        <option key={item.uid} value={item.uid}>
-                          {sp?.name ?? item.speciesId} · {item.weightKg} kg ({formatCredits(item.sellValue)})
-                        </option>
-                      );
-                    })}
-                  </select>
-                  {(() => {
-                    const targetUid = appraiseSelectedUid || save.inventory[0]?.uid;
-                    const targetItem = save.inventory.find((i) => i.uid === targetUid);
-                    const sp = targetItem
-                      ? FISCH_SPECIES.find((s) => s.id === targetItem.speciesId)
-                      : null;
-                    const fee = sp ? Math.max(150, Math.round(sp.baseValuePerKg * sp.maxKg * 0.25)) : 150;
-                    return (
-                      <button
-                        disabled={!targetItem}
-                        onClick={() => targetItem && handleAppraiseFish(targetItem.uid)}
-                        className="w-full py-2 rounded-lg bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1] text-xs font-semibold cursor-pointer"
-                      >
-                        Appraise Ikan ({formatCredits(fee)})
-                      </button>
-                    );
-                  })()}
-                </>
-              )}
-            </div>
-
-            {/* Merlin (Sunstone) */}
-            <div className="rounded-xl bg-[#ECEAE1]/60 dark:bg-[#061116]/65 border border-[#0B1E27]/12 dark:border-[#82AAA1]/18 p-4 space-y-3">
-              <h4 className="font-display text-base font-bold">Merlin — Sunstone Peak</h4>
-              <p className="text-xs text-[#425B66] dark:text-[#98ACB5]">
-                Penyihir Sunstone menyediakan Enchant Relic langka serta berkah keberuntungan sementara.
-              </p>
-              <div className="text-xs font-semibold text-[#7B3FE4] dark:text-[#B794F4]">
-                Stok Enchant Relic Anda: {save.relicCount}×
-              </div>
-              <div className="space-y-2">
-                <button
-                  onClick={() => {
-                    if (save.credits < 11000) {
-                      soundEffects.playWarning();
-                      showTempBanner('Enchant Relic dari Merlin berharga 11,000 C$.');
-                      return;
-                    }
-                    soundEffects.playFischEnchant();
-                    setSave((p) => ({
-                      ...p,
-                      credits: p.credits - 11000,
-                      relicCount: p.relicCount + 1,
-                    }));
-                    showTempBanner('Membeli 1× Enchant Relic dari Merlin!');
-                  }}
-                  className="w-full py-2 rounded-lg bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1] text-xs font-semibold cursor-pointer"
-                >
-                  Beli Enchant Relic (11,000 C$)
-                </button>
-                <button
-                  onClick={() => {
-                    if (save.credits < 2500) {
-                      soundEffects.playWarning();
-                      showTempBanner('Merlin’s Luck Boost butuh 2,500 C$.');
-                      return;
-                    }
-                    soundEffects.playFischEnchant();
-                    setSave((p) => ({
-                      ...p,
-                      credits: p.credits - 2500,
-                      merlinLuckUntil: Date.now() + 90000,
-                    }));
-                    showTempBanner('Berkah Merlin aktif! +65% Luck selama 90 detik.');
-                  }}
-                  className="w-full py-2 rounded-lg bg-white dark:bg-[#0E2632] border border-[#0B1E27]/15 dark:border-[#82AAA1]/25 text-xs font-semibold cursor-pointer"
-                >
-                  Merlin’s Luck +65% / 90d (2,500 C$)
-                </button>
-              </div>
-            </div>
-
-            {/* Keeper's Altar (Night Enchanting) */}
-            <div className="rounded-xl bg-[#ECEAE1]/60 dark:bg-[#061116]/65 border border-[#0B1E27]/12 dark:border-[#82AAA1]/18 p-4 space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <h4 className="font-display text-base font-bold flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-[#7B3FE4] dark:text-[#B794F4]" />
-                  <span>Keeper’s Altar</span>
-                </h4>
-                <span
-                  className={`text-[11px] font-semibold ${
-                    timeOfDay === 'Night'
-                      ? 'text-[#2A7B4F] dark:text-[#5EC48B]'
-                      : 'text-[#B84F3C] dark:text-[#D98270]'
-                  }`}
-                >
-                  {timeOfDay === 'Night' ? 'Altar Terbuka (Malam)' : 'Aktif Saat Malam'}
-                </span>
-              </div>
-              <p className="text-xs text-[#425B66] dark:text-[#98ACB5]">
-                Pasang salah satu dari 12 Enchantment (Divine, Abyssal, Quantum, Blessed, Hasty) memakai 1× Enchant Relic.
-              </p>
-
-              <select
-                value={enchantTargetRodId}
-                onChange={(e) => setEnchantTargetRodId(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-white dark:bg-[#0E2632] border border-[#0B1E27]/15 dark:border-[#82AAA1]/25 text-xs"
-              >
-                {save.ownedRods.map((rId) => {
-                  const r = findRod(rId);
-                  const e = findEnchant(save.rodEnchants[rId]);
-                  return (
-                    <option key={rId} value={rId}>
-                      {r.name} {e ? `[${e.name}]` : '(Polos)'}
-                    </option>
-                  );
-                })}
-              </select>
-
-              <button
-                onClick={handleEnchantRod}
-                className={`w-full py-2 rounded-lg text-xs font-semibold cursor-pointer ${
-                  timeOfDay === 'Night' && save.relicCount > 0
-                    ? 'bg-[#7B3FE4] hover:bg-[#662ED0] text-white'
-                    : 'bg-[#0B1E27]/12 dark:bg-[#EDEBE3]/12 text-[#425B66] dark:text-[#98ACB5]'
-                }`}
-              >
-                Enchant Rod (1× Relic)
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 5: NPC QUESTS & ROTATING ANGLER BOARD */}
-        {activeTab === 'quests' && (
-          <div className="space-y-5">
-            {/* Rotating Angler Quest */}
-            {save.anglerQuest && (
-              <div className="rounded-xl bg-white dark:bg-[#0E2632] border border-[#267472]/40 dark:border-[#82AAA1]/35 p-4 flex flex-wrap items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="text-[11px] uppercase tracking-wider font-semibold text-[#1D6664] dark:text-[#82AAA1]">
-                    The Angler · Misi Harian Berulang
-                  </div>
-                  <h4 className="font-display text-base font-bold">{save.anglerQuest.title}</h4>
-                  <p className="text-xs text-[#425B66] dark:text-[#98ACB5] tabular-nums">
-                    Progres: {save.anglerQuest.progress}/{save.anglerQuest.requiredAmount} ekor · Hadiah:{' '}
-                    {formatCredits(save.anglerQuest.rewardCredits)} + {save.anglerQuest.rewardXp} XP +{' '}
-                    {save.anglerQuest.rewardBaitAmount}×{' '}
-                    {findBait(save.anglerQuest.rewardBaitId)?.name ?? save.anglerQuest.rewardBaitId}
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      soundEffects.playBubblePop();
-                      setSave((p) => ({ ...p, anglerQuest: generateAnglerQuest(p.level) }));
-                    }}
-                    className="px-3 py-2 rounded-lg bg-[#ECEAE1] dark:bg-[#061116] text-xs font-semibold cursor-pointer"
-                  >
-                    Ganti Pesanan
-                  </button>
-                  <button
-                    disabled={save.anglerQuest.progress < save.anglerQuest.requiredAmount}
-                    onClick={handleClaimAnglerQuest}
-                    className={`px-4 py-2 rounded-lg text-xs font-semibold ${
-                      save.anglerQuest.progress >= save.anglerQuest.requiredAmount
-                        ? 'bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1] cursor-pointer'
-                        : 'bg-[#0B1E27]/10 dark:bg-[#EDEBE3]/10 text-[#5F7782] cursor-not-allowed'
-                    }`}
-                  >
-                    Klaim Hadiah
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* NPC Story Quests */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-              {FISCH_QUESTS.map((q) => {
-                const completed = save.completedQuestIds.includes(q.id);
-                const lockedByLevel = save.level < q.minLevel;
-                const progress = save.questProgress[q.id] ?? 0;
-                const readyToClaim = !completed && !lockedByLevel && progress >= q.requiredAmount;
-
-                return (
-                  <div
-                    key={q.id}
-                    className={`rounded-xl p-4 border flex flex-col justify-between gap-3 ${
-                      completed
-                        ? 'bg-[#2A7B4F]/8 dark:bg-[#5EC48B]/10 border-[#2A7B4F]/25 dark:border-[#5EC48B]/25'
-                        : 'bg-[#ECEAE1]/55 dark:bg-[#061116]/65 border-[#0B1E27]/10 dark:border-[#82AAA1]/15'
-                    }`}
-                  >
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="font-semibold text-[#1D6664] dark:text-[#82AAA1]">
-                          {q.npcName} · {q.npcRole}
-                        </span>
-                        <span className="tabular-nums text-[#425B66] dark:text-[#98ACB5]">
-                          Lv. {q.minLevel}+
-                        </span>
-                      </div>
-                      <h5 className="font-display text-sm font-bold">{q.title}</h5>
-                      <p className="text-[11px] text-[#425B66] dark:text-[#98ACB5] leading-relaxed">
-                        {q.description}
-                      </p>
-                      <div className="text-[11px] font-medium text-[#876B3A] dark:text-[#F6C453] tabular-nums">
-                        Hadiah: {formatCredits(q.rewardCredits)} · {q.rewardXp} XP
-                        {q.rewardRodId ? ` · ${findRod(q.rewardRodId).name}` : ''}
-                        {q.rewardRelics ? ` · ${q.rewardRelics}× Relic` : ''}
-                        {q.rewardBait
-                          ? ` · ${q.rewardBait.amount}× ${findBait(q.rewardBait.baitId)?.name ?? ''}`
-                          : ''}
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="w-full h-1.5 rounded-full bg-[#DCE6E4] dark:bg-[#102B38] overflow-hidden">
-                        <div
-                          className="h-full bg-[#267472] dark:bg-[#82AAA1]"
-                          style={{
-                            width: `${completed ? 100 : Math.min(100, (progress / q.requiredAmount) * 100)}%`,
-                          }}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between text-[11px] tabular-nums">
-                        <span>
-                          {completed
-                            ? 'Selesai'
-                            : lockedByLevel
-                            ? `Terbuka di Lv. ${q.minLevel}`
-                            : `${progress}/${q.requiredAmount}`}
-                        </span>
-                        {readyToClaim && (
+                {/* 4. NPC: THE ANGLER (DAILY ORDERS) */}
+                {activePopup.kind === 'npc' && activePopup.npc.targetTab === 'angler' && (
+                  <div className="space-y-4">
+                    {save.anglerQuest && (
+                      <div className="rounded-xl bg-white dark:bg-[#0E2632] border border-[#267472]/40 dark:border-[#82AAA1]/35 p-4 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] uppercase tracking-wider font-semibold text-[#1D6664] dark:text-[#82AAA1]">
+                            Misi Harian Berulang
+                          </span>
+                          <span className="text-xs font-bold tabular-nums">
+                            {save.anglerQuest.progress}/{save.anglerQuest.requiredAmount} ekor
+                          </span>
+                        </div>
+                        <h4 className="font-display text-base font-bold">{save.anglerQuest.title}</h4>
+                        <div className="w-full h-2 rounded-full bg-[#DCE6E4] dark:bg-[#102B38] overflow-hidden">
+                          <div
+                            className="h-full bg-[#267472] dark:bg-[#82AAA1]"
+                            style={{
+                              width: `${Math.min(
+                                100,
+                                (save.anglerQuest.progress / save.anglerQuest.requiredAmount) * 100
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                        <p className="text-xs text-[#876B3A] dark:text-[#F6C453] font-semibold tabular-nums">
+                          Hadiah: {formatCredits(save.anglerQuest.rewardCredits)} +{' '}
+                          {save.anglerQuest.rewardXp} XP + {save.anglerQuest.rewardBaitAmount}×{' '}
+                          {findBait(save.anglerQuest.rewardBaitId)?.name ??
+                            save.anglerQuest.rewardBaitId}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
                           <button
-                            onClick={() => handleClaimQuest(q.id)}
-                            className="px-3 py-1 rounded-lg bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1] font-semibold cursor-pointer"
+                            onClick={() => {
+                              soundEffects.playBubblePop();
+                              setSave((p) => ({ ...p, anglerQuest: generateAnglerQuest(p.level) }));
+                            }}
+                            className="px-3.5 py-2 rounded-lg bg-[#ECEAE1] dark:bg-[#061116] text-xs font-semibold cursor-pointer"
                           >
-                            Klaim
+                            Ganti Pesanan
                           </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* TAB 6: BESTIARY (230 SPECIES & CRATES) */}
-        {activeTab === 'bestiary' && (
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h4 className="font-display text-base font-bold">
-                  Bestiary Samudra — {discoveredCount} / {FISCH_SPECIES.length} Spesies ({bestiaryPercent}%)
-                </h4>
-                <p className="text-xs text-[#425B66] dark:text-[#98ACB5]">
-                  Lengkapi seluruh entri di {FISCH_ISLANDS.length} pulau termasuk ikan legendaris, mutasi langka, geode, dan relik.
-                </p>
-              </div>
-              <div className="w-48 h-2.5 rounded-full bg-[#DCE6E4] dark:bg-[#102B38] overflow-hidden">
-                <div
-                  className="h-full bg-[#267472] dark:bg-[#82AAA1] transition-all duration-300"
-                  style={{ width: `${bestiaryPercent}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Filter Bar */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#5F7782]" />
-                <input
-                  type="text"
-                  value={bestiarySearch}
-                  onChange={(e) => setBestiarySearch(e.target.value)}
-                  placeholder="Cari nama spesies..."
-                  className="w-full pl-8 pr-3 py-2 rounded-lg bg-white dark:bg-[#061116] border border-[#0B1E27]/12 dark:border-[#82AAA1]/20 text-xs"
-                />
-              </div>
-              <select
-                value={bestiaryIslandFilter}
-                onChange={(e) => setBestiaryIslandFilter(e.target.value)}
-                className="px-3 py-2 rounded-lg bg-white dark:bg-[#061116] border border-[#0B1E27]/12 dark:border-[#82AAA1]/20 text-xs"
-              >
-                <option value="all">Semua Pulau ({FISCH_SPECIES.length})</option>
-                {FISCH_ISLANDS.map((isl) => (
-                  <option key={isl.id} value={isl.id}>
-                    {isl.name}
-                  </option>
-                ))}
-                <option value="universal">Peti &amp; Relik Universal</option>
-              </select>
-              <select
-                value={bestiaryRarityFilter}
-                onChange={(e) => setBestiaryRarityFilter(e.target.value)}
-                className="px-3 py-2 rounded-lg bg-white dark:bg-[#061116] border border-[#0B1E27]/12 dark:border-[#82AAA1]/20 text-xs"
-              >
-                <option value="all">Semua Rarity</option>
-                {RARITY_ORDER.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={bestiaryStatusFilter}
-                onChange={(e) =>
-                  setBestiaryStatusFilter(e.target.value as 'all' | 'caught' | 'missing')
-                }
-                className="px-3 py-2 rounded-lg bg-white dark:bg-[#061116] border border-[#0B1E27]/12 dark:border-[#82AAA1]/20 text-xs"
-              >
-                <option value="all">Semua Status</option>
-                <option value="caught">Sudah Ditangkap ({discoveredCount})</option>
-                <option value="missing">Belum Ditemukan ({FISCH_SPECIES.length - discoveredCount})</option>
-              </select>
-            </div>
-
-            {/* Bestiary Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[410px] overflow-y-auto pr-1">
-              {filteredBestiary.map((sp) => {
-                const entry = save.bestiary[sp.id];
-                const found = Boolean(entry);
-                const islName =
-                  sp.islandId === 'universal'
-                    ? 'Semua Perairan'
-                    : FISCH_ISLANDS.find((i) => i.id === sp.islandId)?.name ?? sp.islandId;
-                const prefHint = [
-                  sp.preferredTime ? sp.preferredTime : null,
-                  sp.preferredWeather ? sp.preferredWeather : null,
-                  sp.preferredBait ? `Umpan ${findBait(sp.preferredBait)?.name ?? sp.preferredBait}` : null,
-                ]
-                  .filter(Boolean)
-                  .join(' · ');
-
-                return (
-                  <div
-                    key={sp.id}
-                    className={`rounded-xl p-3 border space-y-1.5 ${
-                      found
-                        ? 'bg-white dark:bg-[#061116]/75 border-[#0B1E27]/12 dark:border-[#82AAA1]/20'
-                        : 'bg-[#ECEAE1]/40 dark:bg-[#061116]/35 border-[#0B1E27]/8 dark:border-[#82AAA1]/10 opacity-75'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2 text-[11px]">
-                      <span
-                        className="font-bold"
-                        style={{
-                          color:
-                            theme === 'dark'
-                              ? RARITY_COLORS[sp.rarity].dark
-                              : RARITY_COLORS[sp.rarity].light,
-                        }}
-                      >
-                        {sp.rarity}
-                      </span>
-                      <span className="text-[#425B66] dark:text-[#98ACB5] truncate">{islName}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Fish
-                        className="w-4 h-4 shrink-0"
-                        style={{ color: found ? sp.colorHex : '#5F7782' }}
-                      />
-                      <span className="font-display text-sm font-bold truncate">
-                        {found ? sp.name : `??? (${sp.name.slice(0, 2)}•••)`}
-                      </span>
-                    </div>
-
-                    {found ? (
-                      <>
-                        <p className="text-[11px] text-[#425B66] dark:text-[#98ACB5] leading-snug">
-                          {sp.description}
-                        </p>
-                        <div className="text-[11px] text-[#1D6664] dark:text-[#82AAA1] tabular-nums">
-                          Ditangkap {entry.caughtCount}× · Rekor {entry.bestWeightKg} kg · {sp.baseValuePerKg} C$/kg
+                          <button
+                            disabled={save.anglerQuest.progress < save.anglerQuest.requiredAmount}
+                            onClick={handleClaimAnglerQuest}
+                            className={`px-4 py-2 rounded-lg text-xs font-semibold ${
+                              save.anglerQuest.progress >= save.anglerQuest.requiredAmount
+                                ? 'bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1] cursor-pointer'
+                                : 'bg-[#0B1E27]/10 dark:bg-[#EDEBE3]/10 text-[#5F7782] cursor-not-allowed'
+                            }`}
+                          >
+                            Klaim Hadiah
+                          </button>
                         </div>
-                        {entry.mutations.length > 0 && (
-                          <div className="text-[11px] text-[#7B3FE4] dark:text-[#B794F4]">
-                            Mutasi: {entry.mutations.join(', ')}
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <div className="text-[11px] text-[#5F7782] dark:text-[#7C929C] space-y-0.5">
-                        <div>Bobot: {sp.minKg}–{sp.maxKg} kg</div>
-                        <div>{prefHint ? `Petunjuk: ${prefHint}` : 'Petunjuk: Muncul di segala cuaca'}</div>
                       </div>
                     )}
                   </div>
-                );
-              })}
+                )}
+
+                {/* 5. NPC: PENJAGA PULAU (STORY QUESTS) */}
+                {activePopup.kind === 'npc' && activePopup.npc.targetTab === 'quest' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {FISCH_QUESTS.map((q) => {
+                      const completed = save.completedQuestIds.includes(q.id);
+                      const lockedByLevel = save.level < q.minLevel;
+                      const progress = save.questProgress[q.id] ?? 0;
+                      const readyToClaim = !completed && !lockedByLevel && progress >= q.requiredAmount;
+
+                      return (
+                        <div
+                          key={q.id}
+                          className={`rounded-xl p-4 border flex flex-col justify-between gap-3 ${
+                            completed
+                              ? 'bg-[#2A7B4F]/10 dark:bg-[#5EC48B]/10 border-[#2A7B4F]/30 dark:border-[#5EC48B]/30'
+                              : 'bg-[#ECEAE1]/55 dark:bg-[#061116]/65 border-[#0B1E27]/10 dark:border-[#82AAA1]/15'
+                          }`}
+                        >
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="font-semibold text-[#1D6664] dark:text-[#82AAA1] flex items-center gap-1">
+                                <Award className="w-3.5 h-3.5" />
+                                {q.npcName} · {q.npcRole}
+                              </span>
+                              <span className="tabular-nums text-[#425B66] dark:text-[#98ACB5]">
+                                Lv. {q.minLevel}+
+                              </span>
+                            </div>
+                            <h5 className="font-display text-sm font-bold">{q.title}</h5>
+                            <p className="text-[11px] text-[#425B66] dark:text-[#98ACB5] leading-relaxed">
+                              {q.description}
+                            </p>
+                            <div className="text-[11px] font-medium text-[#876B3A] dark:text-[#F6C453] tabular-nums">
+                              Hadiah: {formatCredits(q.rewardCredits)} · {q.rewardXp} XP
+                              {q.rewardRodId ? ` · ${findRod(q.rewardRodId).name}` : ''}
+                              {q.rewardRelics ? ` · ${q.rewardRelics}× Relic` : ''}
+                              {q.rewardBait
+                                ? ` · ${q.rewardBait.amount}× ${findBait(q.rewardBait.baitId)?.name ?? ''}`
+                                : ''}
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <div className="w-full h-1.5 rounded-full bg-[#DCE6E4] dark:bg-[#102B38] overflow-hidden">
+                              <div
+                                className="h-full bg-[#267472] dark:bg-[#82AAA1]"
+                                style={{
+                                  width: `${
+                                    completed ? 100 : Math.min(100, (progress / q.requiredAmount) * 100)
+                                  }%`,
+                                }}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] tabular-nums">
+                              <span>
+                                {completed
+                                  ? 'Selesai'
+                                  : lockedByLevel
+                                  ? `Terbuka di Lv. ${q.minLevel}`
+                                  : `${progress}/${q.requiredAmount}`}
+                              </span>
+                              {readyToClaim && (
+                                <button
+                                  onClick={() => handleClaimQuest(q.id)}
+                                  className="px-3 py-1 rounded-lg bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1] font-semibold cursor-pointer"
+                                >
+                                  Klaim
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* 6. NPC: MERLIN (RELICS, LUCK & WEATHER TOTEMS) */}
+                {activePopup.kind === 'npc' && activePopup.npc.targetTab === 'merlin' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="rounded-xl bg-[#ECEAE1]/65 dark:bg-[#061116]/70 border border-[#0B1E27]/12 dark:border-[#82AAA1]/20 p-4 space-y-3">
+                      <h4 className="font-display text-sm font-bold">Relic &amp; Sihir Keberuntungan</h4>
+                      <div className="text-xs font-semibold text-[#7B3FE4] dark:text-[#B794F4]">
+                        Stok Enchant Relic Anda: {save.relicCount}×
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (save.credits < 11000) {
+                            soundEffects.playWarning();
+                            showTempBanner('Enchant Relic dari Merlin berharga 11,000 C$.');
+                            return;
+                          }
+                          soundEffects.playFischEnchant();
+                          setSave((p) => ({
+                            ...p,
+                            credits: p.credits - 11000,
+                            relicCount: p.relicCount + 1,
+                          }));
+                          showTempBanner('Membeli 1× Enchant Relic dari Merlin!');
+                        }}
+                        className="w-full py-2 rounded-lg bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1] text-xs font-semibold cursor-pointer"
+                      >
+                        Beli Enchant Relic (11,000 C$)
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (save.credits < 2500) {
+                            soundEffects.playWarning();
+                            showTempBanner('Merlin’s Luck Boost butuh 2,500 C$.');
+                            return;
+                          }
+                          soundEffects.playFischEnchant();
+                          setSave((p) => ({
+                            ...p,
+                            credits: p.credits - 2500,
+                            merlinLuckUntil: Date.now() + 90000,
+                          }));
+                          showTempBanner('Berkah Merlin aktif! +65% Luck selama 90 detik.');
+                        }}
+                        className="w-full py-2 rounded-lg bg-white dark:bg-[#0E2632] border border-[#0B1E27]/15 dark:border-[#82AAA1]/25 text-xs font-semibold cursor-pointer"
+                      >
+                        Merlin’s Luck +65% / 90d (2,500 C$)
+                      </button>
+                    </div>
+
+                    <div className="rounded-xl bg-[#ECEAE1]/65 dark:bg-[#061116]/70 border border-[#0B1E27]/12 dark:border-[#82AAA1]/20 p-4 space-y-3">
+                      <h4 className="font-display text-sm font-bold">Totem Waktu &amp; Cuaca</h4>
+                      <p className="text-xs text-[#425B66] dark:text-[#98ACB5]">
+                        Ganti Siang menjadi Malam untuk mengaktifkan Keeper’s Altar, atau panggil Aurora Borealis!
+                      </p>
+                      <button
+                        onClick={() => {
+                          if (save.credits < 600) {
+                            soundEffects.playWarning();
+                            showTempBanner('Sundial Totem butuh 600 C$.');
+                            return;
+                          }
+                          soundEffects.playFischEnchant();
+                          setSave((p) => ({ ...p, credits: p.credits - 600 }));
+                          setTimeOfDay((t) => (t === 'Day' ? 'Night' : 'Day'));
+                          showTempBanner('Sundial Totem diaktifkan! Siang ↔ Malam berganti.');
+                        }}
+                        className="w-full py-2 rounded-lg bg-white dark:bg-[#0E2632] border border-[#0B1E27]/15 dark:border-[#82AAA1]/25 text-xs font-semibold cursor-pointer"
+                      >
+                        Sundial Totem — Siang/Malam (600 C$)
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (save.credits < 8500) {
+                            soundEffects.playWarning();
+                            showTempBanner('Aurora Totem butuh 8,500 C$.');
+                            return;
+                          }
+                          soundEffects.playFischEnchant();
+                          setWeather('Aurora');
+                          setTimeOfDay('Night');
+                          setSave((p) => ({
+                            ...p,
+                            credits: p.credits - 8500,
+                            auroraTotemUntil: Date.now() + 90000,
+                          }));
+                          showTempBanner('Aurora Borealis muncul di langit! +140% Luck selama 90 detik.');
+                        }}
+                        className="w-full py-2 rounded-lg bg-[#7B3FE4] hover:bg-[#662ED0] text-white text-xs font-semibold cursor-pointer"
+                      >
+                        Aurora Totem +140% Luck (8,500 C$)
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* 7. NPC: KEEPER'S ALTAR (ENCHANTING) */}
+                {activePopup.kind === 'npc' && activePopup.npc.targetTab === 'altar' && (
+                  <div className="space-y-4">
+                    <div className="rounded-xl bg-[#ECEAE1]/65 dark:bg-[#061116]/70 border border-[#0B1E27]/12 dark:border-[#82AAA1]/20 p-4 space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 className="font-display text-sm font-bold flex items-center gap-1.5">
+                          <Sparkles className="w-4 h-4 text-[#7B3FE4] dark:text-[#B794F4]" />
+                          <span>Altar Pengubah Joran ({save.relicCount}× Relic tersedia)</span>
+                        </h4>
+                        <span
+                          className={`text-xs font-bold ${
+                            timeOfDay === 'Night'
+                              ? 'text-[#2A7B4F] dark:text-[#5EC48B]'
+                              : 'text-[#B84F3C] dark:text-[#D98270]'
+                          }`}
+                        >
+                          {timeOfDay === 'Night' ? 'Altar Terbuka (Malam)' : 'Aktif Saat Malam'}
+                        </span>
+                      </div>
+
+                      <select
+                        value={enchantTargetRodId}
+                        onChange={(e) => setEnchantTargetRodId(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-lg bg-white dark:bg-[#0E2632] border border-[#0B1E27]/15 dark:border-[#82AAA1]/25 text-xs"
+                      >
+                        {save.ownedRods.map((rId) => {
+                          const r = findRod(rId);
+                          const e = findEnchant(save.rodEnchants[rId]);
+                          return (
+                            <option key={rId} value={rId}>
+                              {r.name} {e ? `[${e.name}]` : '(Polos)'}
+                            </option>
+                          );
+                        })}
+                      </select>
+
+                      <button
+                        onClick={handleEnchantRod}
+                        className={`w-full py-2.5 rounded-lg text-xs font-semibold cursor-pointer ${
+                          timeOfDay === 'Night' && save.relicCount > 0
+                            ? 'bg-[#7B3FE4] hover:bg-[#662ED0] text-white'
+                            : 'bg-[#0B1E27]/12 dark:bg-[#EDEBE3]/12 text-[#425B66] dark:text-[#98ACB5]'
+                        }`}
+                      >
+                        Enchant Rod (Gunakan 1× Enchant Relic)
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {FISCH_ENCHANTS.map((enc) => (
+                        <div
+                          key={enc.id}
+                          className="rounded-lg p-2.5 bg-white dark:bg-[#0E2632] border border-[#0B1E27]/10 dark:border-[#82AAA1]/15 text-[11px]"
+                        >
+                          <div className="font-bold text-[#7B3FE4] dark:text-[#B794F4]">
+                            {enc.name}
+                          </div>
+                          <div className="text-[#425B66] dark:text-[#98ACB5]">{enc.description}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* CORNER HUD POPUP 1: TAS (CRATES, BAITS, RODS, INVENTORY) */}
+                {activePopup.kind === 'bag' && (
+                  <div className="space-y-5">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {/* Crates */}
+                      <div className="rounded-xl bg-[#ECEAE1]/65 dark:bg-[#061116]/65 border border-[#0B1E27]/10 dark:border-[#82AAA1]/15 p-3.5 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-display text-sm font-bold flex items-center gap-1.5">
+                            <PackageOpen className="w-4 h-4 text-[#1D6664] dark:text-[#82AAA1]" />
+                            <span>Peti Umpan &amp; Geode ({totalCrates})</span>
+                          </h4>
+                          <span className="text-xs font-semibold text-[#7B3FE4] dark:text-[#B794F4]">
+                            Enchant Relic: {save.relicCount}×
+                          </span>
+                        </div>
+                        {Object.keys(save.crateCounts).length === 0 ? (
+                          <p className="text-xs text-[#425B66] dark:text-[#98ACB5]">
+                            Belum ada peti. Tangkap di laut atau beli di Merchant.
+                          </p>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {Object.entries(save.crateCounts).map(([cId, count]) => {
+                              const sp = FISCH_SPECIES.find((s) => s.id === cId);
+                              return (
+                                <button
+                                  key={cId}
+                                  onClick={() => handleOpenCrate(cId)}
+                                  className="px-3 py-1.5 rounded-lg bg-white dark:bg-[#0E2632] border border-[#0B1E27]/12 dark:border-[#82AAA1]/25 text-xs font-semibold hover:border-[#267472] cursor-pointer"
+                                >
+                                  Buka {sp?.name ?? cId} ({count}×)
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Bait Bag */}
+                      <div className="rounded-xl bg-[#ECEAE1]/65 dark:bg-[#061116]/65 border border-[#0B1E27]/10 dark:border-[#82AAA1]/15 p-3.5 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-display text-sm font-bold">Pilih Umpan (Bait Bag)</h4>
+                          {save.equippedBaitId && (
+                            <button
+                              onClick={() => setSave((p) => ({ ...p, equippedBaitId: null }))}
+                              className="text-xs text-[#B84F3C] dark:text-[#D98270] font-semibold cursor-pointer"
+                            >
+                              Lepas Umpan
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {FISCH_BAITS.filter((b) => (save.baitCounts[b.id] ?? 0) > 0).length === 0 ? (
+                            <p className="text-xs text-[#425B66] dark:text-[#98ACB5]">
+                              Stok umpan kosong. Beli di Merchant atau buka Peti Umpan.
+                            </p>
+                          ) : (
+                            FISCH_BAITS.filter((b) => (save.baitCounts[b.id] ?? 0) > 0).map((b) => {
+                              const active = save.equippedBaitId === b.id;
+                              return (
+                                <button
+                                  key={b.id}
+                                  onClick={() => {
+                                    soundEffects.playBubblePop();
+                                    setSave((p) => ({ ...p, equippedBaitId: b.id }));
+                                  }}
+                                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer ${
+                                    active
+                                      ? 'bg-[#267472] text-[#F7F6F1] border-[#267472]'
+                                      : 'bg-white dark:bg-[#0E2632] border-[#0B1E27]/12 dark:border-[#82AAA1]/20'
+                                  }`}
+                                >
+                                  {b.name} ({save.baitCounts[b.id]}×)
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Owned Rods */}
+                    <div className="space-y-2">
+                      <h4 className="font-display text-sm font-bold">
+                        Joran Dimiliki ({save.ownedRods.length}/{FISCH_RODS.length})
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {save.ownedRods.map((rId) => {
+                          const rod = findRod(rId);
+                          const enchant = findEnchant(save.rodEnchants[rId]);
+                          const active = save.equippedRodId === rId;
+                          return (
+                            <button
+                              key={rId}
+                              onClick={() => {
+                                soundEffects.playBubblePop();
+                                setSave((p) => ({ ...p, equippedRodId: rId }));
+                                setEnchantTargetRodId(rId);
+                              }}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border flex items-center gap-2 cursor-pointer ${
+                                active
+                                  ? 'bg-[#267472] text-[#F7F6F1] border-[#267472]'
+                                  : 'bg-white dark:bg-[#0E2632] border-[#0B1E27]/12 dark:border-[#82AAA1]/20'
+                              }`}
+                            >
+                              <span
+                                className="w-2.5 h-2.5 rounded-full"
+                                style={{ backgroundColor: rod.colorHex }}
+                              />
+                              <span>{rod.name}</span>
+                              {enchant && <span className="opacity-85">[{enchant.name}]</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Fish Inventory */}
+                    <div className="space-y-2.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h4 className="font-display text-sm font-bold">
+                          Tas Ikan ({save.inventory.length}/120)
+                        </h4>
+                        <span className="text-[11px] text-[#425B66] dark:text-[#98ACB5]">
+                          Kunjungi Merchant pulau mana pun untuk menjual tangkapan Anda.
+                        </span>
+                      </div>
+
+                      {save.inventory.length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-[#0B1E27]/20 dark:border-[#82AAA1]/25 p-5 text-center text-xs text-[#425B66] dark:text-[#98ACB5]">
+                          Tas ikan masih kosong.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                          {save.inventory.map((item) => {
+                            const sp = FISCH_SPECIES.find((s) => s.id === item.speciesId);
+                            if (!sp) return null;
+                            const mut = FISCH_MUTATIONS.find((m) => m.id === item.mutationId);
+                            return (
+                              <div
+                                key={item.uid}
+                                className="rounded-xl bg-white dark:bg-[#061116]/80 border border-[#0B1E27]/12 dark:border-[#82AAA1]/20 p-3 flex flex-col justify-between gap-2"
+                              >
+                                <div className="space-y-0.5">
+                                  <div className="flex items-center justify-between gap-2 text-[11px]">
+                                    <span
+                                      className="font-bold"
+                                      style={{
+                                        color:
+                                          theme === 'dark'
+                                            ? RARITY_COLORS[sp.rarity].dark
+                                            : RARITY_COLORS[sp.rarity].light,
+                                      }}
+                                    >
+                                      {sp.rarity}
+                                    </span>
+                                    <span className="tabular-nums font-semibold">
+                                      {item.weightKg} kg
+                                    </span>
+                                  </div>
+                                  <div className="font-display text-xs sm:text-sm font-bold truncate">
+                                    {item.isGiant ? 'Giant ' : item.isTiny ? 'Tiny ' : ''}
+                                    {mut && mut.id !== 'none' ? `${mut.name} ` : ''}
+                                    {sp.name}
+                                  </div>
+                                  <div className="text-[11px] text-[#425B66] dark:text-[#98ACB5] tabular-nums">
+                                    {[
+                                      item.isShiny ? 'Shiny' : null,
+                                      item.isSparkling ? 'Sparkling' : null,
+                                      formatCredits(item.sellValue),
+                                    ]
+                                      .filter(Boolean)
+                                      .join(' · ')}
+                                  </div>
+                                </div>
+
+                                <button
+                                  onClick={() => handleToggleLock(item.uid)}
+                                  className="w-full py-1.5 rounded-lg bg-[#ECEAE1] dark:bg-[#0E2632] text-[11px] font-semibold flex items-center justify-center gap-1 cursor-pointer"
+                                >
+                                  {item.locked ? (
+                                    <>
+                                      <Lock className="w-3 h-3 text-[#876B3A] dark:text-[#F6C453]" />
+                                      <span>Favorit (Terkunci)</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Unlock className="w-3 h-3" />
+                                      <span>Kunci sebagai Favorit</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* CORNER HUD POPUP 2: BESTIARY */}
+                {activePopup.kind === 'bestiary' && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#5F7782]" />
+                        <input
+                          type="text"
+                          value={bestiarySearch}
+                          onChange={(e) => setBestiarySearch(e.target.value)}
+                          placeholder="Cari spesies..."
+                          className="w-full pl-8 pr-3 py-2 rounded-lg bg-white dark:bg-[#061116] border border-[#0B1E27]/12 dark:border-[#82AAA1]/20 text-xs"
+                        />
+                      </div>
+                      <select
+                        value={bestiaryIslandFilter}
+                        onChange={(e) => setBestiaryIslandFilter(e.target.value)}
+                        className="px-3 py-2 rounded-lg bg-white dark:bg-[#061116] border border-[#0B1E27]/12 dark:border-[#82AAA1]/20 text-xs"
+                      >
+                        <option value="all">Semua Pulau ({FISCH_SPECIES.length})</option>
+                        {FISCH_ISLANDS.map((isl) => (
+                          <option key={isl.id} value={isl.id}>
+                            {isl.name}
+                          </option>
+                        ))}
+                        <option value="universal">Peti &amp; Relik Universal</option>
+                      </select>
+                      <select
+                        value={bestiaryRarityFilter}
+                        onChange={(e) => setBestiaryRarityFilter(e.target.value)}
+                        className="px-3 py-2 rounded-lg bg-white dark:bg-[#061116] border border-[#0B1E27]/12 dark:border-[#82AAA1]/20 text-xs"
+                      >
+                        <option value="all">Semua Rarity</option>
+                        {RARITY_ORDER.map((r) => (
+                          <option key={r} value={r}>
+                            {r}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={bestiaryStatusFilter}
+                        onChange={(e) =>
+                          setBestiaryStatusFilter(e.target.value as 'all' | 'caught' | 'missing')
+                        }
+                        className="px-3 py-2 rounded-lg bg-white dark:bg-[#061116] border border-[#0B1E27]/12 dark:border-[#82AAA1]/20 text-xs"
+                      >
+                        <option value="all">Semua Status</option>
+                        <option value="caught">Sudah Ditangkap ({discoveredCount})</option>
+                        <option value="missing">
+                          Belum Ditemukan ({FISCH_SPECIES.length - discoveredCount})
+                        </option>
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                      {filteredBestiary.map((sp) => {
+                        const entry = save.bestiary[sp.id];
+                        const found = Boolean(entry);
+                        const islName =
+                          sp.islandId === 'universal'
+                            ? 'Semua Perairan'
+                            : FISCH_ISLANDS.find((i) => i.id === sp.islandId)?.name ?? sp.islandId;
+                        const prefHint = [
+                          sp.preferredTime ? sp.preferredTime : null,
+                          sp.preferredWeather ? sp.preferredWeather : null,
+                          sp.preferredBait
+                            ? `Umpan ${findBait(sp.preferredBait)?.name ?? sp.preferredBait}`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ');
+
+                        return (
+                          <div
+                            key={sp.id}
+                            className={`rounded-xl p-3 border space-y-1 ${
+                              found
+                                ? 'bg-white dark:bg-[#061116]/80 border-[#0B1E27]/12 dark:border-[#82AAA1]/20'
+                                : 'bg-[#ECEAE1]/45 dark:bg-[#061116]/35 border-[#0B1E27]/8 dark:border-[#82AAA1]/10 opacity-75'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2 text-[11px]">
+                              <span
+                                className="font-bold"
+                                style={{
+                                  color:
+                                    theme === 'dark'
+                                      ? RARITY_COLORS[sp.rarity].dark
+                                      : RARITY_COLORS[sp.rarity].light,
+                                }}
+                              >
+                                {sp.rarity}
+                              </span>
+                              <span className="text-[#425B66] dark:text-[#98ACB5] truncate">
+                                {islName}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <Fish
+                                className="w-4 h-4 shrink-0"
+                                style={{ color: found ? sp.colorHex : '#5F7782' }}
+                              />
+                              <span className="font-display text-xs sm:text-sm font-bold truncate">
+                                {found ? sp.name : `??? (${sp.name.slice(0, 2)}•••)`}
+                              </span>
+                            </div>
+
+                            {found ? (
+                              <>
+                                <p className="text-[11px] text-[#425B66] dark:text-[#98ACB5] leading-snug">
+                                  {sp.description}
+                                </p>
+                                <div className="text-[11px] text-[#1D6664] dark:text-[#82AAA1] tabular-nums">
+                                  {entry.caughtCount}× · Rekor {entry.bestWeightKg} kg ·{' '}
+                                  {sp.baseValuePerKg} C$/kg
+                                </div>
+                              </>
+                            ) : (
+                              <div className="text-[11px] text-[#5F7782] dark:text-[#7C929C]">
+                                <div>Bobot: {sp.minKg}–{sp.maxKg} kg</div>
+                                <div>{prefHint ? `Petunjuk: ${prefHint}` : 'Segala cuaca'}</div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* CORNER HUD POPUP 3: PETA LAUT & KOMPAS NAVIGASI (BOAT-ONLY SAILING) */}
+                {activePopup.kind === 'map' && (
+                  <div className="space-y-4">
+                    {/* Interactive 2D Archipelago Sea Chart */}
+                    <div className="relative h-64 sm:h-72 rounded-xl bg-[#071B26] border border-[#82AAA1]/30 overflow-hidden">
+                      {/* Sea Grid Lines */}
+                      <div
+                        className="absolute inset-0 opacity-20"
+                        style={{
+                          backgroundImage:
+                            'linear-gradient(to right, #82AAA1 1px, transparent 1px), linear-gradient(to bottom, #82AAA1 1px, transparent 1px)',
+                          backgroundSize: '36px 36px',
+                        }}
+                      />
+
+                      {/* SVG Route Line between currentIsland and compassTargetIslandId */}
+                      {compassTargetIslandId && (() => {
+                        const target = FISCH_ISLANDS.find((i) => i.id === compassTargetIslandId);
+                        if (!target || target.id === currentIsland.id) return null;
+                        const x1 = ((currentIsland.worldCoords.x + 108) / 216) * 100;
+                        const y1 = ((currentIsland.worldCoords.z + 84) / 168) * 100;
+                        const x2 = ((target.worldCoords.x + 108) / 216) * 100;
+                        const y2 = ((target.worldCoords.z + 84) / 168) * 100;
+                        return (
+                          <svg
+                            viewBox="0 0 100 100"
+                            preserveAspectRatio="none"
+                            className="absolute inset-0 w-full h-full pointer-events-none"
+                          >
+                            <line
+                              x1={x1}
+                              y1={y1}
+                              x2={x2}
+                              y2={y2}
+                              stroke="#F6C453"
+                              strokeWidth="0.7"
+                              strokeDasharray="2 1.5"
+                            />
+                          </svg>
+                        );
+                      })()}
+
+                      {FISCH_ISLANDS.map((isl) => {
+                        const leftPct = ((isl.worldCoords.x + 108) / 216) * 100;
+                        const topPct = ((isl.worldCoords.z + 84) / 168) * 100;
+                        const isHere = isl.id === currentIsland.id;
+                        const isTarget = isl.id === compassTargetIslandId;
+
+                        return (
+                          <button
+                            key={isl.id}
+                            type="button"
+                            onClick={() => {
+                              if (!isHere) {
+                                setCompassTargetIslandId((prev) => (prev === isl.id ? null : isl.id));
+                              }
+                            }}
+                            style={{
+                              left: `${leftPct}%`,
+                              top: `${topPct}%`,
+                              transform: 'translate(-50%, -50%)',
+                            }}
+                            className={`absolute flex flex-col items-center gap-0.5 cursor-pointer group ${
+                              isHere ? 'z-20' : 'z-10'
+                            }`}
+                          >
+                            <div
+                              className={`w-4 h-4 rounded-full border-2 transition-transform group-hover:scale-125 ${
+                                isHere
+                                  ? 'scale-125 border-white shadow-lg'
+                                  : isTarget
+                                  ? 'scale-115 border-[#F6C453] shadow-md'
+                                  : 'border-[#071B26]'
+                              }`}
+                              style={{ backgroundColor: isl.accentHex }}
+                            />
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${
+                                isHere
+                                  ? 'bg-[#267472] text-white'
+                                  : isTarget
+                                  ? 'bg-[#876B3A] text-white'
+                                  : 'bg-[#040E14]/85 text-[#EDEBE3]'
+                              }`}
+                            >
+                              {isl.name}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Island Directory Cards (Compass Pinning Only, No Instant Teleport) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {FISCH_ISLANDS.map((isl) => {
+                        const isHere = isl.id === currentIsland.id;
+                        const isTarget = isl.id === compassTargetIslandId;
+                        const relDist = Math.round(
+                          Math.hypot(
+                            isl.worldCoords.x - currentIsland.worldCoords.x,
+                            isl.worldCoords.z - currentIsland.worldCoords.z
+                          )
+                        );
+                        const islandTotal = FISCH_SPECIES.filter((s) => s.islandId === isl.id).length;
+                        const islandFound = FISCH_SPECIES.filter(
+                          (s) => s.islandId === isl.id && Boolean(save.bestiary[s.id])
+                        ).length;
+
+                        return (
+                          <div
+                            key={isl.id}
+                            className={`rounded-xl p-3.5 border flex flex-col justify-between gap-2.5 ${
+                              isHere
+                                ? 'bg-white dark:bg-[#0E2632] border-[#267472] dark:border-[#82AAA1]'
+                                : isTarget
+                                ? 'bg-white dark:bg-[#0E2632] border-[#F6C453]'
+                                : 'bg-[#ECEAE1]/55 dark:bg-[#061116]/60 border-[#0B1E27]/10 dark:border-[#82AAA1]/15'
+                            }`}
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between gap-2 text-[11px]">
+                                <span
+                                  className="font-bold flex items-center gap-1"
+                                  style={{ color: isl.accentHex }}
+                                >
+                                  <Ship className="w-3 h-3" />
+                                  {isHere ? 'Posisi Kapal Anda' : `${relDist} m berlayar`}
+                                </span>
+                                <span className="tabular-nums text-[#425B66] dark:text-[#98ACB5]">
+                                  {islandFound}/{islandTotal} Ikan
+                                </span>
+                              </div>
+                              <h4 className="font-display text-sm font-bold">{isl.name}</h4>
+                              <p className="text-[11px] text-[#425B66] dark:text-[#98ACB5] leading-snug">
+                                {isl.description}
+                              </p>
+                            </div>
+
+                            {isHere ? (
+                              <div className="w-full py-1.5 rounded-lg bg-[#267472]/15 text-[#1D6664] dark:text-[#82AAA1] text-xs font-semibold text-center">
+                                Lokasi Saat Ini
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  soundEffects.playBubblePop();
+                                  setCompassTargetIslandId((prev) =>
+                                    prev === isl.id ? null : isl.id
+                                  );
+                                }}
+                                className={`w-full py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer ${
+                                  isTarget
+                                    ? 'bg-[#876B3A] text-white'
+                                    : 'bg-[#267472] hover:bg-[#1D6664] text-[#F7F6F1]'
+                                }`}
+                              >
+                                <Navigation className="w-3.5 h-3.5" />
+                                <span>
+                                  {isTarget ? 'Hapus Arah Kompas' : 'Pasang Arah Kompas'}
+                                </span>
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
-      </div>
-      )}
-
-      {/* Clean Footer Strip */}
-      <div className="px-5 py-2.5 bg-[#ECEAE1]/90 dark:bg-[#061116]/90 border-t border-[#0B1E27]/10 dark:border-[#82AAA1]/15 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#425B66] dark:text-[#8FA3AC]">
-        <span className="flex items-center gap-1.5">
-          <Waves className="w-3.5 h-3.5 text-[#1D6664] dark:text-[#82AAA1]" />
-          <span>Fisch: Ekspedisi Pancing Samudra · Progres tersimpan otomatis di browser</span>
-        </span>
-        <span className="flex items-center gap-1.5 tabular-nums">
-          <Anchor className="w-3.5 h-3.5" />
-          <span>Total Tangkapan: {save.totalCatches} · Peti Dibuka: {save.cratesOpened}</span>
-        </span>
-      </div>
+      </Fisch3DViewport>
     </div>
   );
 };
